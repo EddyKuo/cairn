@@ -1,0 +1,13 @@
+{
+  "name": "cairn-docs-tools",
+  "private": true,
+  "type": "module",
+  "description": "文件工具：驗證 SDD 內的 Mermaid UML 可正確 render",
+  "scripts": {
+    "check:uml": "node check-mermaid.mjs ../docs/*.md ../docs/sdd/*.md"
+  },
+  "dependencies": {
+    "jsdom": "^24.1.3",
+    "mermaid": "^11.16.1"
+  }
+}

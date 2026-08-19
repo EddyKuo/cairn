@@ -1,0 +1,13 @@
+# 開發工具相依（166 MB，僅文件驗證用，以 package-lock.json 還原）
+tools/node_modules/
+
+# 上游規格原始檔（內部文件，不進公開 repo）
+*.docx
+~$*
+
+# macOS
+.DS_Store
+
+# 編輯器
+.vscode/
+.idea/
