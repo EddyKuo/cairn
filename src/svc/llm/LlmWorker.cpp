@@ -50,7 +50,7 @@ LlmWorker::~LlmWorker()
     Stop();
 }
 
-Status LlmWorker::Start()
+::cairn::Status LlmWorker::Start()
 {
     if (m_thread.joinable()) return Ok();
     m_thread = std::jthread([this](std::stop_token st) { Run(st); });

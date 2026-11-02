@@ -129,12 +129,19 @@ switch ($Scenario) {
             try {
                 & sc.exe stop CairnAgent | Out-Null; Start-Sleep -Seconds 5
                 & sc.exe start CairnAgent | Out-Null; Start-Sleep -Seconds 10
-                $prep = Invoke-CairnRpc -Method 'response.prepare' -Params @{ id = $AlertId; action = 'suspend_process' }
-                $exec = Invoke-CairnRpc -Method 'response.execute' -Params @{ id = $AlertId; action = 'suspend_process'; confirmation_token = $prep.confirmation_token; reason = 'Run-AppVerifier Response 情境' }
-                $auditId = $exec.audit_id
-                if ($auditId) {
-                    $rprep = Invoke-CairnRpc -Method 'response.prepare' -Params @{ id = $AlertId; action = 'suspend_process'; revert_audit_id = $auditId }
-                    [void](Invoke-CairnRpc -Method 'response.revert' -Params @{ id = $AlertId; audit_id = $auditId; confirmation_token = $rprep.confirmation_token })
+                $prep = Invoke-CairnRpc -Method 'response.prepare' -Params @{ alert_id = "$AlertId"; action = 'suspend_process' }
+                $exec = Invoke-CairnRpc -Method 'response.execute' -Params @{ alert_id = "$AlertId"; action = 'suspend_process'; confirmation_token = $prep.confirmation_token; reason = 'Run-AppVerifier Response 情境' }
+                # 還原：第一次不帶 token → 服務回 CONFIRMATION_REQUIRED（error.data.details.confirmation_token），再帶 token 重送
+                $ref = if ($exec.audit_entry_id) { "$($exec.audit_entry_id)" } else { "$($exec.action_id)" }
+                if ($ref) {
+                    $first = Invoke-CairnRpcCall -Method 'response.revert' -Params @{ alert_id = "$AlertId"; audit_id = $ref }
+                    $tok = $null
+                    if ($first.error -and $first.error.data -and $first.error.data.details) { $tok = $first.error.data.details.confirmation_token }
+                    if ($tok) {
+                        [void](Invoke-CairnRpc -Method 'response.revert' -Params @{ alert_id = "$AlertId"; audit_id = $ref; confirmation_token = $tok; reason = 'Run-AppVerifier Response 情境' })
+                    } else {
+                        Write-Warning "response.revert 未回傳 confirmation_token：$($first | ConvertTo-Json -Depth 6 -Compress)"
+                    }
                 }
                 Start-Sleep -Seconds 5
             } finally {

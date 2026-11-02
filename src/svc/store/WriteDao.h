@@ -36,6 +36,7 @@ namespace cairn::store {
 [[nodiscard]] Status SetExclusionEnabled(SqliteDb& db, const model::ExclusionSetEnabled& r);
 [[nodiscard]] Status IncrementExclusionHits(SqliteDb& db, const model::ExclusionHitIncrement& r);
 [[nodiscard]] Status InsertHealth(SqliteDb& db, const model::HealthRow& r);
+[[nodiscard]] Status DismissSuggestion(SqliteDb& db, const model::SuggestionDismiss& r);
 
 // JSON 陣列文字（rule_ids / attack_ids / ai_attack_ids 欄位）
 [[nodiscard]] std::string ToJsonArray(const std::vector<std::string>& v);

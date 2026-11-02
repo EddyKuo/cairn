@@ -68,7 +68,7 @@ public:
     LlmWorker(const LlmWorker&)            = delete;
     LlmWorker& operator=(const LlmWorker&) = delete;
 
-    [[nodiscard]] Status Start();
+    [[nodiscard]] ::cairn::Status Start();   // 以限定名稱避免與成員函式 Status() 的類別作用域名稱衝突
     // 停止預算內（≤ 20 s）收手：取消進行中的推論、join 執行緒。冪等。
     void Stop() noexcept;
 

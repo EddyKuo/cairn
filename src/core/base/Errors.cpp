@@ -53,6 +53,10 @@ std::string_view ErrorCodeName(ErrorCode c) noexcept
     case ErrorCode::MethodNotFound: return "MethodNotFound";
     case ErrorCode::PayloadTooLarge: return "PayloadTooLarge";
     case ErrorCode::ServiceUnavailable: return "ServiceUnavailable";
+    case ErrorCode::ImpactChanged: return "ImpactChanged";
+    case ErrorCode::TypedConfirmationMismatch: return "TypedConfirmationMismatch";
+    case ErrorCode::NotReversible: return "NotReversible";
+    case ErrorCode::TokenInvalid: return "TokenInvalid";
     }
     return "Unknown";
 }

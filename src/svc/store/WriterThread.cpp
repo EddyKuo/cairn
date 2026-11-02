@@ -293,6 +293,8 @@ Status WriterThread::ApplyOne(const WriteOp& op, int64_t& newId)
                 return RemoveExclusion(*m_db, p);
             } else if constexpr (std::is_same_v<T, model::ExclusionSetEnabled>) {
                 return SetExclusionEnabled(*m_db, p);
+            } else if constexpr (std::is_same_v<T, model::SuggestionDismiss>) {
+                return DismissSuggestion(*m_db, p);
             } else {
                 static_assert(sizeof(T) == 0, "WriteOp payload 未處理");
             }

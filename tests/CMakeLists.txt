@@ -18,7 +18,7 @@ if(NOT CAIRN_CORE_ONLY)
     file(GLOB CAIRN_SVC_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/svc/*.cpp)
     add_executable(cairn_tests_svc ${CAIRN_SVC_TEST_SOURCES})
     target_link_libraries(cairn_tests_svc PRIVATE
-        cairn_core cairn_telemetry cairn_store cairn_response cairn_llm cairn_rpc
+        cairn_core cairn_telemetry cairn_store cairn_response cairn_llm cairn_rpc cairn_host
         GTest::gtest GTest::gtest_main)
     target_compile_definitions(cairn_tests_svc PRIVATE
         CAIRN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"

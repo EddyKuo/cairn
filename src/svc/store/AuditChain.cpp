@@ -34,6 +34,7 @@ std::string ComputeAuditRowHash(const AuditFields& f)
 
 std::string DeriveEventKind(const model::AuditRow& row)
 {
+    if (!row.eventKind.empty()) return row.eventKind;   // 呼叫端明確指定者優先
     try {
         const auto p = nlohmann::json::parse(row.paramsJson, nullptr, /*allow_exceptions*/ false);
         if (p.is_object()) {

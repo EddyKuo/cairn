@@ -79,6 +79,10 @@ enum class ErrorCode : uint32_t {
     MethodNotFound          = 0x06000005,
     PayloadTooLarge         = 0x06000006,
     ServiceUnavailable      = 0x06000007,
+    ImpactChanged           = 0x06000008,   // prepare 之後目標狀態改變（HTTP 409）
+    TypedConfirmationMismatch = 0x06000009, // L3 打字確認不符（HTTP 400）
+    NotReversible           = 0x0600000A,   // 不可逆動作的 revert（HTTP 409）
+    TokenInvalid            = 0x0600000B,   // 確認 token 不存在／已消費／綁定不符（HTTP 401/403）
 };
 
 [[nodiscard]] constexpr ErrorDomain DomainOf(ErrorCode c) noexcept

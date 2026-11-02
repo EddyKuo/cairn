@@ -105,6 +105,7 @@ cmake --build --preset x64-debug --target cairn_store
 cmake --build --preset x64-debug --target cairn_response
 cmake --build --preset x64-debug --target cairn_llm
 cmake --build --preset x64-debug --target cairn_rpc
+cmake --build --preset x64-debug --target cairn_host          # 整合層的可攜部分（設定、狀態、27 條 RPC handlers）
 cmake --build --preset x64-debug --target cairn_tests_svc
 cmake --build --preset x64-debug --target CairnAgent
 cmake --build --preset x64-debug --target CairnConsole
@@ -221,6 +222,28 @@ $ps = Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-PowerShell/O
 - 事件檢視器 → Windows 記錄 → 應用程式（Event ID 1000/1001）
 
 ---
+
+### 5.1 整合層（CairnAgent.exe）首次啟動要盯的點
+
+整合層（`src/svc/host/`）把 7 個模組接成服務，也從未在 Windows 上執行過。以 `--console` 前景執行最容易看出問題：
+
+```powershell
+& .\build\x64-debug\src\svc\CairnAgent.exe --console     # 系統管理員；Ctrl+C 停止
+Get-Content "$env:ProgramData\Cairn\logs\cairn-svc.log" -Tail 50 -Wait
+```
+
+| 檢查 | 預期 | 出問題時看哪裡 |
+|---|---|---|
+| 單一實例鎖 | 第二個 `--console` 立刻以 `ERROR_SERVICE_ALREADY_RUNNING` 結束 | `rpc/PipeServer.cpp` 的 `FILE_FLAG_FIRST_PIPE_INSTANCE` |
+| RPC 方法數 | 日誌出現「RPC：已註冊 27 條方法」 | `host/handlers/*.cpp`；`kExpectedRpcMethods` |
+| 規則 | 「規則載入：成功 19 條、失敗 0 條」 | `%ProgramData%\Cairn\rules\`（不存在則讀 EXE 旁的 `rules\`） |
+| 內建排除 | 首次啟動「已寫入 N 條內建排除」，第二次啟動不再出現（`state.json` 的 `builtin_exclusions_seeded`） | `ServiceHost::SeedBuiltinExclusions` |
+| 既存程序 | 「既存程序快照：N 個」 | `telemetry/ProcessSnapshot.cpp` |
+| 健康度 | 10 秒後 `agent_health` 開始有列；`Invoke-Rpc -Method health.get` 的 `providers` 為 healthy | `ServiceHost::SampleHealth` |
+| Ctrl+C 關機 | 30 秒內依序停完並印「CairnAgent 已停止」；`cairn.db-wal` 被 checkpoint 清空；無 `llama-server.exe` 殘留 | `ServiceHost::Stop`（順序：Maintenance → RPC → 來源 → Normalizer → Analysis → LLM → Response → Writer → llama Job） |
+| 暫停防護 | `protection.pause` 第一次回 403 + token；帶 token 重送後 `health.get` 的 `protection_state = paused` | `handlers/SystemHandlers.cpp` |
+
+`ServiceHost.cpp` 最可能的編譯問題：`wil/resource.h` 與 `<winhttp.h>` 的 include 順序（已在 `ServiceHost.h` 先 include `<winhttp.h>`）、`condition_variable_any::wait_for(lock, stop_token, …)` 的 MSVC 支援、`spdlog::sinks::rotating_file_sink_mt` 的檔名型別（`filename_t` 若為 `std::wstring` 需改傳 `.wstring()`）。
 
 ## 6. 依週出場條件逐項驗證
 
@@ -346,13 +369,13 @@ cmake --preset x64-release; cmake --build --preset x64-release
 
 | 假設 | 出現在 | 如何確認 |
 |---|---|---|
-| `agent_health.events_ingested / events_dropped` 是**累計值**還是**區間值** | `Load-Test.ps1` | 腳本會自動判斷（單調不減視為累計），報表會印出判定結果；確認與 `src/svc` 的實作一致 |
-| RPC 參數名：`alerts.get` / `response.prepare` 用 `id`；`response.execute` 用 `action`、`confirmation_token`；revert 用 `audit_id` | `Run-AppVerifier.ps1 -AlertId`、`Invoke-Rpc.ps1` 範例 | `.\tools\Invoke-Rpc.ps1 -Method response.prepare -Params @{...} -Raw` 看錯誤訊息，對照 RPC handler 實作 |
+| `agent_health.events_ingested / events_dropped` 是**累計值**（**已確認**：`ServiceHost::SampleHealth` 寫入自服務啟動以來的累計；重啟後歸零） | `Load-Test.ps1` | 腳本的自動判斷應印出「累計」 |
+| RPC 參數名（**已對齊整合層**）：告警 ID 用 `alert_id`（亦接受 `id`），一律可用字串；`response.revert` 第一次不帶 token 會回 `CONFIRMATION_REQUIRED`，token 在 `error.data.details.confirmation_token` | `Run-AppVerifier.ps1 -AlertId`、`Invoke-Rpc.ps1` 範例 | `.\tools\Invoke-Rpc.ps1 -Method response.prepare -Params @{ alert_id='1'; action='suspend_process' } -Raw`；實作見 `src/svc/host/handlers/` |
 | `rules.list` 回傳 `{ items: [{ rule_id, status, ... }] }` | `Run-AtomicSuite.ps1` | 同上；失敗時腳本會退回以 `rule_hits.dryrun` 判斷 |
 | Sysmon 的 `SysmonDrv\Parameters\ConfigHash` 是對 XML 原檔計算的 SHA256 | `Check-Prereqs.ps1` | 套用 `config\sysmon.xml` 後比對 `Get-FileHash`；不一致就改成比對 `Sysmon64.exe -c` 的輸出 |
 | `appverif.exe -export log -for <image> -with To=<file>` 的語法與 XML 中的 `logEntry` 節點名 | `Run-AppVerifier.ps1` | 先手動對一個測試執行檔跑一次並開啟匯出的 XML |
 | ART 測試以 WMI 啟動後，Cairn 會把它視為獨立的程序樹 | `Run-AtomicSuite.ps1` | 跑一項後查 `rule_hits.root_process_guid` 是否與其他測試不同；若仍累加到同一棵樹，改用 `-RestartAgentBetweenTests` |
-| `%ProgramData%\Cairn\policy.json` 是服務讀取的政策檔名；規則目錄為 `%ProgramData%\Cairn\rules\` | `Install-Dev.ps1` | 對照 `src/svc` 的設定載入程式碼 |
-| `CairnAgent.exe --install / --uninstall / --console` | `Install-Dev.ps1` | 對照 `src/svc/main.cpp` |
+| `%ProgramData%\Cairn\policy.json` 是服務讀取的政策檔名；規則目錄為 `%ProgramData%\Cairn\rules\`（**已確認**：`ServiceHost::LoadConfig`；規則目錄不存在時退回 EXE 旁的 `rules\`） | `Install-Dev.ps1` | 缺失或損毀時服務寫回內建預設並在 health.get 的 `degraded_reasons` 標 `policy_default` |
+| `CairnAgent.exe --install / --uninstall / --console`（**已確認**：`src/svc/host/main.cpp`） | `Install-Dev.ps1` | — |
 | CI 的 `ajv` 規則驗證：規則檔是「一檔一條規則」且符合 `rules/_schema.json` | `.github/workflows/ci.yml` | 本機 `npx -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv validate -s rules/_schema.json -d rules/R-*.yaml` |
 | CI 的 `core-only` job 能在 Linux/macOS 以 vcpkg 還原 yaml-cpp / yyjson / nlohmann-json / gtest | `.github/workflows/ci.yml` | 第一次推上 GitHub 後看該 job |

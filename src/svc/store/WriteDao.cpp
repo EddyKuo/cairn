@@ -302,6 +302,15 @@ Status IncrementExclusionHits(SqliteDb& db, const model::ExclusionHitIncrement& 
     return st.Run();
 }
 
+Status DismissSuggestion(SqliteDb& db, const model::SuggestionDismiss& r)
+{
+    if (r.suggestionId.empty()) return MakeError(ErrorCode::InvalidArgument, "DismissSuggestion: empty id");
+    CAIRN_TRY(auto st, db.Prepare("INSERT INTO dismissed_suggestions(suggestion_id, dismissed_ts) VALUES(?1, ?2)"
+                                  " ON CONFLICT(suggestion_id) DO UPDATE SET dismissed_ts = excluded.dismissed_ts;"));
+    st.BindText(1, r.suggestionId).Bind(2, r.ts);
+    return st.Run();
+}
+
 Status InsertHealth(SqliteDb& db, const model::HealthRow& r)
 {
     CAIRN_TRY(auto st, db.Prepare(

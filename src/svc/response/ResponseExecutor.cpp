@@ -166,6 +166,7 @@ struct ResponseExecutor::Impl {
         a.ts        = clock->NowMs();
         a.actor     = r.actor;
         a.action    = std::string(model::ActionKindToString(r.action));
+        a.eventKind = std::string(eventKind);
         if (r.alertId != 0) a.alertId = r.alertId;
         a.target    = r.results.empty() ? r.ip : r.results.front().key;
         if (r.results.size() > 1) a.target += " (+" + std::to_string(r.results.size() - 1) + ")";

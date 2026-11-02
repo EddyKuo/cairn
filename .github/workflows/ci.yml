@@ -153,18 +153,29 @@ jobs:
 
       - name: 規則 YAML schema 驗證（rules/_schema.json）
         shell: bash
+        # 規則檔為多文件 YAML（一檔多條規則，以 --- 分隔）；ajv-cli 只吃單一文件，故以 Python 逐文件驗證
         run: |
-          shopt -s nullglob
-          files=()
-          for f in rules/*.yaml; do
-            case "$(basename "$f")" in exclusions*) continue ;; esac
-            files+=("-d" "$f")
-          done
-          if [ ${#files[@]} -eq 0 ]; then echo "rules/ 下沒有規則檔"; exit 1; fi
-          # 依 _schema.json 宣告的 $schema 決定 ajv 的 spec（draft-07 為 ajv 預設）
-          spec=""
-          if grep -q '2020-12' rules/_schema.json; then spec="--spec=draft2020"; elif grep -q '2019-09' rules/_schema.json; then spec="--spec=draft2019"; fi
-          npx --yes -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv validate $spec --strict=false -c ajv-formats -s rules/_schema.json "${files[@]}"
+          python3 -m pip install --quiet pyyaml jsonschema
+          python3 - <<'PY'
+          import glob, json, os, sys, yaml, jsonschema
+          schema = json.load(open("rules/_schema.json", encoding="utf-8"))
+          cls = jsonschema.validators.validator_for(schema)
+          cls.check_schema(schema)
+          v = cls(schema)
+          n = bad = 0
+          for f in sorted(glob.glob("rules/*.yaml")):
+              if os.path.basename(f).startswith(("exclusions", "_")):
+                  continue
+              for doc in yaml.safe_load_all(open(f, encoding="utf-8")):
+                  if doc is None:
+                      continue
+                  n += 1
+                  for e in v.iter_errors(doc):
+                      bad += 1
+                      print(f"{f} [{doc.get('id', '?')}] {'/'.join(map(str, e.path))}: {e.message}")
+          print(f"validated {n} rules, {bad} errors")
+          sys.exit(1 if bad or n == 0 else 0)
+          PY
 
       # 程式碼格式：首次導入時程式碼尚未全面 clang-format，先以非阻擋方式回報（part4 §4.5.1 要求最終改為阻擋）
       - name: clang-format 檢查

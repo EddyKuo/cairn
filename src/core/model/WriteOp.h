@@ -138,6 +138,7 @@ struct AuditRow {
     UnixMs      ts = 0;
     std::string actor;                      // system | analyst | rule_engine
     std::string action;                     // C-9 動作名 / exclusion_add / verdict / db_rebuilt ...
+    std::string eventKind;                  // action_started | action_completed | action_reverted | ...；空 = 由 store 推導
     std::optional<int64_t> alertId;
     std::string target;
     std::string paramsJson = "{}";
@@ -158,6 +159,13 @@ struct ExclusionInsert {
 struct ExclusionRemove { int64_t id = 0; };
 struct ExclusionSetEnabled { int64_t id = 0; bool enabled = true; };
 struct ExclusionHitIncrement { int64_t id = 0; uint32_t count = 1; UnixMs ts = 0; };
+
+// exclusions.dismissSuggestion：使用者忽略某個排除建議（dismissed_suggestions 表）
+struct SuggestionDismiss {
+    std::string suggestionId;               // ExclusionSuggestion::suggestionId；「全部忽略」由 RPC 層逐筆投遞
+    UnixMs      ts = 0;
+    std::string actor;
+};
 
 // ---- agent_health ----
 struct HealthRow {
@@ -181,7 +189,8 @@ using WriteCompletion = std::function<void(Result<int64_t>)>;
 using WritePayload = std::variant<
     EventRow, ProcessRow, ProcessEndUpdate, ProcessTerminatedByUs, ScoreRow, RuleHitRow,
     AlertRow, AlertNarrativeUpdate, AlertVerdictUpdate, AlertActionAppend, AuditRow,
-    ExclusionInsert, ExclusionRemove, ExclusionSetEnabled, ExclusionHitIncrement, HealthRow>;
+    ExclusionInsert, ExclusionRemove, ExclusionSetEnabled, ExclusionHitIncrement, HealthRow,
+    SuggestionDismiss>;
 
 struct WriteOp {
     WritePayload    payload;
@@ -194,7 +203,8 @@ struct WriteOp {
                std::holds_alternative<AlertVerdictUpdate>(payload) ||
                std::holds_alternative<ExclusionInsert>(payload) ||
                std::holds_alternative<ExclusionRemove>(payload) ||
-               std::holds_alternative<ExclusionSetEnabled>(payload);
+               std::holds_alternative<ExclusionSetEnabled>(payload) ||
+               std::holds_alternative<SuggestionDismiss>(payload);
     }
 };
 

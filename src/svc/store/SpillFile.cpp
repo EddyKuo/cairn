@@ -95,6 +95,7 @@ std::string SerializeSpill(const SpillRecord& rec)
              {"ts", r.ts},
              {"actor", r.actor},
              {"action", r.action},
+             {"event_kind", r.eventKind},
              {"alert_id", Opt(r.alertId)},
              {"target", r.target},
              {"params", r.paramsJson},
@@ -139,6 +140,7 @@ Result<SpillRecord> DeserializeSpill(std::string_view line)
             r.ts         = j.value("ts", int64_t{0});
             r.actor      = j.value("actor", std::string{});
             r.action     = j.value("action", std::string{});
+            r.eventKind  = j.value("event_kind", std::string{});
             r.alertId    = OptFrom<int64_t>(j, "alert_id");
             r.target     = j.value("target", std::string{});
             r.paramsJson = j.value("params", std::string{"{}"});

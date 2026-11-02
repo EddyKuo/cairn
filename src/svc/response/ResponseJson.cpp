@@ -339,7 +339,7 @@ json ToJson(const ActionImpact& impact, model::ActionKind action)
     case model::ActionKind::SuspendProcess:
     case model::ActionKind::TerminateProcessTree: j["processes"] = std::move(procs); break;
     case model::ActionKind::QuarantineFile: j["files"] = std::move(files); break;
-    case model::ActionKind::FirewallBlock: j["addresses"] = std::move(ips); break;
+    case model::ActionKind::FirewallBlock: j["ips"] = std::move(ips); break;   // UI 契約（ui-web types.ts）
     }
     j["total_count"] = impact.totalCount;
     j["protected_process_count"] = impact.protectedCount;
