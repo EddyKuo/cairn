@@ -1,0 +1,234 @@
+<!--
+  Cairn M0 — Sysmon 組態（Sysmon v15.15+，schema 4.90）
+  權威來源：docs/part2_arch.md §2.2.1–2.2.2；docs/part4_plan.md §4.2「config/sysmon.xml 設計要點」
+  以 SwiftOnSecurity / olafhartong modular config 的思路收斂：除 EID 1/5/25 全收外，其餘一律 include-list。
+
+  安裝：sysmon64.exe -accepteula -i config\sysmon.xml
+  更新：sysmon64.exe -c config\sysmon.xml
+  ⚠ 本檔的 SHA256 會由 CairnAgent 比對（sysmon_config_hash，SDD-03 §10.3），任何手改都會被視為組態漂移。
+
+  目標事件量：閒置 < 20 事件/秒，典型辦公負載 < 200 事件/秒。超過就回頭收緊 EID 7 / 11 / 17。
+
+  與 part4 §4.2 表格的差異（依 part2 §2.2.1 的權威決定）：
+    - EID 27 FileBlockExecutable：part2 明定 M0 不啟用（M1 評估），此處為空 include（＝不記錄、不攔截）。
+    - EID 10：除 lsass 高危遮罩外，加收「目標為 CairnAgent.exe」的存取（part4 §4.2：竄改我方偵測）。
+-->
+<Sysmon schemaversion="4.90">
+  <HashAlgorithms>SHA256</HashAlgorithms>
+  <CheckRevocation>False</CheckRevocation>
+  <DnsLookup>False</DnsLookup>
+  <ArchiveDirectory>Cairn-Archive</ArchiveDirectory>
+
+  <EventFiltering>
+
+    <!-- EID 1: Process Create — 全收，程序樹的根基（漏一筆整棵樹就斷） -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessCreate onmatch="exclude" />
+    </RuleGroup>
+
+    <!-- EID 3: Network — 排除本機與系統噪音 -->
+    <RuleGroup name="" groupRelation="or">
+      <NetworkConnect onmatch="exclude">
+        <DestinationIp condition="begin with">127.</DestinationIp>
+        <DestinationIp condition="is">::1</DestinationIp>
+        <DestinationPort condition="is">137</DestinationPort>
+        <DestinationPort condition="is">138</DestinationPort>
+        <DestinationPort condition="is">1900</DestinationPort>
+        <DestinationPort condition="is">5353</DestinationPort>
+        <DestinationPort condition="is">5355</DestinationPort>
+        <!-- ⚠ svchost 不可整支排除（C2 注入後最常見的外連載體）；只排 DHCP / NTP -->
+        <Rule groupRelation="and">
+          <Image condition="end with">\svchost.exe</Image>
+          <DestinationPort condition="is">123</DestinationPort>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="end with">\svchost.exe</Image>
+          <DestinationPort condition="is">67</DestinationPort>
+        </Rule>
+        <Rule groupRelation="and">
+          <Image condition="end with">\svchost.exe</Image>
+          <DestinationPort condition="is">68</DestinationPort>
+        </Rule>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <!-- EID 5: Process Terminate — 全收（Low priority，爆量時可丟） -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessTerminate onmatch="exclude" />
+    </RuleGroup>
+
+    <!-- EID 7: Image Load — 只收未簽章 / 簽章無效 / 使用者可寫目錄（否則單機每分鐘數千筆） -->
+    <RuleGroup name="" groupRelation="or">
+      <ImageLoad onmatch="include">
+        <Signed condition="is">false</Signed>
+        <SignatureStatus condition="is not">Valid</SignatureStatus>
+        <ImageLoaded condition="contains">\AppData\</ImageLoaded>
+        <ImageLoaded condition="contains">\Temp\</ImageLoaded>
+        <ImageLoaded condition="contains">\Users\Public\</ImageLoaded>
+      </ImageLoad>
+    </RuleGroup>
+
+    <!-- EID 8: CreateRemoteThread — 幾乎全收。白名單極短且只放已知 debugger / AV；svchost 不可列入 -->
+    <RuleGroup name="" groupRelation="or">
+      <CreateRemoteThread onmatch="exclude">
+        <SourceImage condition="is">C:\Windows\System32\wbem\WmiPrvSE.exe</SourceImage>
+      </CreateRemoteThread>
+    </RuleGroup>
+
+    <!-- EID 10: ProcessAccess — include 內各條件為 OR，AND 必須以 <Rule groupRelation="and"> 表達 -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessAccess onmatch="include">
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1F0FFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1F1FFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x143A</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1410</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x0A28</GrantedAccess>
+        </Rule>
+        <!-- 竄改我方：任何程序以可終止 / 可寫入的權限開啟 CairnAgent（part4 §4.2） -->
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\CairnAgent.exe</TargetImage>
+          <GrantedAccess condition="is">0x1F0FFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\CairnAgent.exe</TargetImage>
+          <GrantedAccess condition="is">0x1FFFFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\CairnAgent.exe</TargetImage>
+          <GrantedAccess condition="is">0x0001</GrantedAccess>
+        </Rule>
+      </ProcessAccess>
+      <ProcessAccess onmatch="exclude">
+        <SourceImage condition="end with">\MsMpEng.exe</SourceImage>
+        <SourceImage condition="end with">\CairnAgent.exe</SourceImage>
+      </ProcessAccess>
+    </RuleGroup>
+
+    <!-- EID 11: FileCreate — 敏感目錄與副檔名；使用者文件目錄不限副檔名（勒索加密副檔名無法預先列舉） -->
+    <RuleGroup name="" groupRelation="or">
+      <FileCreate onmatch="include">
+        <TargetFilename condition="contains">\Start Menu\Programs\Startup\</TargetFilename>
+        <TargetFilename condition="contains">\AppData\Roaming\Microsoft\Windows\Start Menu\</TargetFilename>
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.hta</TargetFilename>
+        <TargetFilename condition="end with">.lnk</TargetFilename>
+        <TargetFilename condition="contains">README</TargetFilename>
+        <TargetFilename condition="contains">DECRYPT</TargetFilename>
+        <TargetFilename condition="contains">_HOW_TO</TargetFilename>
+        <TargetFilename condition="contains">\Documents\</TargetFilename>
+        <TargetFilename condition="contains">\Desktop\</TargetFilename>
+        <TargetFilename condition="contains">\Pictures\</TargetFilename>
+        <TargetFilename condition="contains">\Downloads\</TargetFilename>
+        <TargetFilename condition="contains">\Users\Public\</TargetFilename>
+        <!-- demo 腳本的勒索模擬資料夾（part1 §5 前置：C:\DemoData\ 的 300 個檔案） -->
+        <TargetFilename condition="begin with">C:\DemoData\</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+    <!-- EID 12/13/14: Registry — 白名單式：只收持久化與安全設定相關的鍵路徑 -->
+    <RuleGroup name="" groupRelation="or">
+      <RegistryEvent onmatch="include">
+        <TargetObject condition="contains">\CurrentVersion\Run</TargetObject>
+        <TargetObject condition="contains">\CurrentVersion\RunOnce</TargetObject>
+        <TargetObject condition="contains">\Image File Execution Options\</TargetObject>
+        <TargetObject condition="contains">\CurrentControlSet\Services\</TargetObject>
+        <TargetObject condition="contains">\Windows Defender\</TargetObject>
+        <TargetObject condition="contains">\Policies\System\EnableLUA</TargetObject>
+        <TargetObject condition="contains">\Winlogon\Shell</TargetObject>
+        <TargetObject condition="contains">\Winlogon\Userinit</TargetObject>
+      </RegistryEvent>
+    </RuleGroup>
+
+    <!-- EID 15: ADS / MOTW -->
+    <RuleGroup name="" groupRelation="or">
+      <FileCreateStreamHash onmatch="include">
+        <TargetFilename condition="contains">:Zone.Identifier</TargetFilename>
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+      </FileCreateStreamHash>
+    </RuleGroup>
+
+    <!-- EID 17/18: Named Pipe — 排除系統常見管道，保留隨機名稱管道（Cobalt Strike / PsExec） -->
+    <RuleGroup name="" groupRelation="or">
+      <PipeEvent onmatch="exclude">
+        <PipeName condition="begin with">\lsass</PipeName>
+        <PipeName condition="begin with">\wkssvc</PipeName>
+        <PipeName condition="begin with">\srvsvc</PipeName>
+        <PipeName condition="begin with">\spoolss</PipeName>
+        <PipeName condition="begin with">\atsvc</PipeName>
+        <PipeName condition="begin with">\epmapper</PipeName>
+        <!-- 我方 RPC 管道（\\.\pipe\Cairn\rpc）：UI 每 2 秒輪詢，不排除會自己灌爆自己 -->
+        <PipeName condition="begin with">\Cairn\</PipeName>
+      </PipeEvent>
+    </RuleGroup>
+
+    <!-- EID 22: DNS — 排除微軟與內部後綴 -->
+    <RuleGroup name="" groupRelation="or">
+      <DnsQuery onmatch="exclude">
+        <QueryName condition="end with">.microsoft.com</QueryName>
+        <QueryName condition="end with">.windowsupdate.com</QueryName>
+        <QueryName condition="end with">.msftncsi.com</QueryName>
+        <QueryName condition="end with">.local</QueryName>
+        <QueryName condition="end with">.in-addr.arpa</QueryName>
+      </DnsQuery>
+    </RuleGroup>
+
+    <!-- EID 23/26: FileDelete — 兩個獨立元素，兩者都必須寫（未配置的 26 會全量記錄） -->
+    <RuleGroup name="" groupRelation="or">
+      <FileDelete onmatch="include">
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.docx</TargetFilename>
+        <TargetFilename condition="end with">.xlsx</TargetFilename>
+        <TargetFilename condition="end with">.pdf</TargetFilename>
+        <TargetFilename condition="end with">.jpg</TargetFilename>
+        <TargetFilename condition="begin with">C:\DemoData\</TargetFilename>
+      </FileDelete>
+    </RuleGroup>
+    <RuleGroup name="" groupRelation="or">
+      <FileDeleteDetected onmatch="include">
+        <TargetFilename condition="end with">.exe</TargetFilename>
+        <TargetFilename condition="end with">.dll</TargetFilename>
+        <TargetFilename condition="end with">.ps1</TargetFilename>
+        <TargetFilename condition="end with">.docx</TargetFilename>
+        <TargetFilename condition="end with">.xlsx</TargetFilename>
+        <TargetFilename condition="end with">.pdf</TargetFilename>
+        <TargetFilename condition="end with">.jpg</TargetFilename>
+        <TargetFilename condition="begin with">C:\DemoData\</TargetFilename>
+      </FileDeleteDetected>
+    </RuleGroup>
+
+    <!-- EID 25: ProcessTampering — 全收，命中即高分 -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessTampering onmatch="exclude" />
+    </RuleGroup>
+
+    <!-- ⚠ 未配置的事件型別 Sysmon 預設全量記錄。M0 不啟用者各給空 include（＝全部排除） -->
+    <RuleGroup name="" groupRelation="or"><FileCreateTime onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><DriverLoad onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><RawAccessRead onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><WmiEvent onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><ClipboardChange onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><FileBlockExecutable onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><FileBlockShredding onmatch="include" /></RuleGroup>
+    <RuleGroup name="" groupRelation="or"><FileExecutableDetected onmatch="include" /></RuleGroup>
+
+  </EventFiltering>
+</Sysmon>

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "cairn",
+  "version": "0.1.0",
+  "description": "Cairn M0 — Minimum Verifiable EDR",
+  "builtin-baseline": "9e593bb18ea69cc5095e012465dcd675a822ed0d",
+  "dependencies": [
+    "nlohmann-json",
+    "yyjson",
+    "yaml-cpp",
+    "sqlite3",
+    "spdlog",
+    "gtest",
+    { "name": "wil", "platform": "windows" },
+    { "name": "webview2", "platform": "windows" }
+  ]
+}

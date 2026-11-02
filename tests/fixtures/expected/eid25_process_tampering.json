@@ -1,0 +1,12 @@
+{
+  "eid": 25,
+  "image": "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe",
+  "pid": 7712,
+  "priority": 0,
+  "process_guid": "{E7C1A2B4-2222-6A1E-4B1E-01DCF0A2B3C4}",
+  "source": "sysmon",
+  "tamper_type": "Image is replaced",
+  "time_ms": 1787120820000,
+  "type": "PROCESS_TAMPERING",
+  "user": "contoso\\eddy"
+}

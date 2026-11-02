@@ -1,0 +1,15 @@
+{
+  "command_line": "cmd.exe /c whoami /all",
+  "eid": 4688,
+  "image": "c:\\windows\\system32\\cmd.exe",
+  "integrity": "Medium",
+  "parent_image": "c:\\program files\\microsoft office\\root\\office16\\winword.exe",
+  "parent_pid": 4816,
+  "pid": 7712,
+  "priority": 1,
+  "source": "security",
+  "synthetic_guid": true,
+  "time_ms": 1787121000500,
+  "type": "SECURITY_PROCESS_CREATE",
+  "user": "contoso\\eddy"
+}

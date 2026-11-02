@@ -1,0 +1,81 @@
+# ============================================================
+# 內建預設排除範本（part2 §2.5「內建預設排除範本」）
+# 安裝時由 svc 寫入 DB exclusions 表（created_by = 'builtin'），之後一律以 DB 為準。
+#
+# 欄位：kind（path | path_glob | sha256 | signer | rule_id | cmdline_glob）、value、
+#       scope_rule_id（省略或 '' = 全域；有值 = 僅排除該規則）、reason
+# 比對對象：觸發命中的「行為者程序」；比對一律不分大小寫；glob 支援 * 與 ?。
+#
+# ⚠ 排除在規則「完整命中之後」評估（SDD-02 §5.5.1）：被排除的命中仍寫入 rule_hits(suppressed=1)，
+#   exclusions.hit_count 會累加，可稽核「這條排除擋掉了多少偵測」。
+# ⚠ 不要排除 "Microsoft Windows" 簽章者：powershell.exe、rundll32.exe 等 LOLBin 都由它簽署。
+# ============================================================
+exclusions:
+  # ---- 開發工具（開發機是誤報率最高的環境，part4 §4.5.3）----
+  - kind: path_glob
+    value: 'C:\Program Files\Microsoft Visual Studio\*'
+    reason: Visual Studio（編譯器、偵錯器會建立遠端執行緒與大量檔案）
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\Microsoft Visual Studio\*'
+    reason: Visual Studio（x86 安裝路徑）
+  - kind: path_glob
+    value: '*\MSBuild\*\MSBuild.exe'
+    reason: MSBuild 大量建立／刪除中間檔
+  - kind: path_glob
+    value: 'C:\Program Files\dotnet\dotnet.exe'
+    reason: .NET CLI
+  - kind: path_glob
+    value: 'C:\Program Files\Git\*'
+    reason: Git for Windows（git.exe、bash、ssh）
+  - kind: path_glob
+    value: 'C:\Program Files\Docker\*'
+    reason: Docker Desktop
+    scope_rule_id: R-T1486-001
+
+  # ---- 備份軟體（勒索規則的頭號誤報來源）----
+  - kind: signer
+    value: 'Veeam Software Group GmbH'
+    reason: Veeam 備份
+  - kind: path_glob
+    value: 'C:\Program Files\Veeam\*'
+    reason: Veeam 備份
+  - kind: path_glob
+    value: 'C:\Program Files\Acronis\*'
+    reason: Acronis 備份
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\Acronis\*'
+    reason: Acronis 備份（x86）
+  - kind: path
+    value: 'C:\Windows\System32\wbengine.exe'
+    reason: Windows Backup 引擎
+    scope_rule_id: R-T1486-001
+
+  # ---- 遠端桌面 / 遠端支援 ----
+  - kind: path_glob
+    value: 'C:\Program Files\TeamViewer\*'
+    reason: TeamViewer
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\TeamViewer\*'
+    reason: TeamViewer（x86）
+  - kind: path_glob
+    value: '*\AnyDesk.exe'
+    reason: AnyDesk
+  - kind: path
+    value: 'C:\Windows\System32\rdpclip.exe'
+    reason: RDP 剪貼簿
+
+  # ---- 瀏覽器自動更新（beacon 規則的主要誤報）----
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\Google\Update\*'
+    reason: Chrome 更新程式
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\Microsoft\EdgeUpdate\*'
+    reason: Edge 更新程式
+  - kind: path_glob
+    value: '*\Mozilla Maintenance Service\*'
+    reason: Firefox 更新服務
+
+  # ---- Cairn 自身 ----
+  - kind: path_glob
+    value: 'C:\Program Files\Cairn\*'
+    reason: Cairn 自身（CairnAgent / CairnConsole / llama-server）

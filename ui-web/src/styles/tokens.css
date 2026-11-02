@@ -1,0 +1,116 @@
+/* Design Tokens（docs/part3_uiux.md §3.6）。dark 為預設。 */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-base: #0b0f14;
+  --bg-surface: #141a21;
+  --bg-elevated: #1c242d;
+  --bg-hover: #222b35;
+  --bg-selected: #1f3a5f;
+  --border-default: #2a3440;
+  --border-strong: #3d4a59;
+  --text-primary: #e6edf3;
+  --text-secondary: #9da7b3;
+  --text-muted: #8b949e;
+  --text-inverse: #0b0f14;
+
+  --sev-critical-fg: #ff6b6b;
+  --sev-high-fg: #ffa657;
+  --sev-medium-fg: #e5c76b;
+  --sev-low-fg: #58a6ff;
+
+  --semantic-success: #3fb950;
+  --semantic-info: #58a6ff;
+  --semantic-ai: #a371f7;
+  --semantic-blocked: #ff6b6b;
+  --semantic-warning: #d29922;
+  --semantic-dryrun: #8b949e;
+
+  --sev-bg-mix: 20%;
+  --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.32);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.48);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-base: #ffffff;
+  --bg-surface: #f6f8fa;
+  --bg-elevated: #ffffff;
+  --bg-hover: #eaeef2;
+  --bg-selected: #ddeafb;
+  --border-default: #d0d7de;
+  --border-strong: #afb8c1;
+  --text-primary: #0d1117;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
+
+  --sev-critical-fg: #b3261e;
+  --sev-high-fg: #b45309;
+  --sev-medium-fg: #8c6100;
+  --sev-low-fg: #0b5fbf;
+
+  --semantic-success: #116329;
+  --semantic-info: #0b5fbf;
+  --semantic-ai: #6639ba;
+  --semantic-blocked: #b3261e;
+  --semantic-warning: #9a6700;
+  --semantic-dryrun: #57606a;
+
+  --sev-bg-mix: 12%;
+  --shadow-dropdown: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.2);
+}
+
+:root {
+  /* Severity 的 -bg / -border 一律由 -fg 推導（§3.6.1） */
+  --sev-critical-bg: color-mix(in srgb, var(--sev-critical-fg) var(--sev-bg-mix), transparent);
+  --sev-high-bg: color-mix(in srgb, var(--sev-high-fg) var(--sev-bg-mix), transparent);
+  --sev-medium-bg: color-mix(in srgb, var(--sev-medium-fg) var(--sev-bg-mix), transparent);
+  --sev-low-bg: color-mix(in srgb, var(--sev-low-fg) var(--sev-bg-mix), transparent);
+  --sev-critical-border: var(--sev-critical-fg);
+  --sev-high-border: var(--sev-high-fg);
+  --sev-medium-border: var(--sev-medium-fg);
+  --sev-low-border: var(--sev-low-fg);
+
+  /* 字體：不載入任何網路字型（氣隙可用），Inter / JetBrains Mono 僅在本機已安裝時採用 */
+  --font-ui: 'Inter', -apple-system, 'Segoe UI Variable', 'Segoe UI', 'Noto Sans TC', 'Microsoft JhengHei',
+    sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 999px;
+
+  --motion-fast: 120ms cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-normal: 200ms cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-slow: 320ms cubic-bezier(0.2, 0, 0.2, 1);
+
+  --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--semantic-info);
+
+  --sidebar-w: 200px;
+  --sidebar-w-collapsed: 56px;
+  --statusbar-h: 48px;
+  --row-h: 56px;
+  --drawer-w: 480px;
+  --modal-w: 480px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms linear;
+    --motion-normal: 0ms linear;
+    --motion-slow: 0ms linear;
+  }
+}

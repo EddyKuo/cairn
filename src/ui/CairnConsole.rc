@@ -1,0 +1,35 @@
+// CairnConsole.rc —— 版本資訊 + 由建置期產生的前端 RCDATA（generated/assets.rc）
+// 圖示於執行期以程式繪製（MainFrame.cpp 的 MakeShieldIcon），不依賴二進位 .ico 檔。
+#pragma code_page(65001)
+#include <winres.h>
+#include "resource.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 0,1,0,0
+ PRODUCTVERSION 0,1,0,0
+ FILEFLAGSMASK 0x3fL
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040404b0"
+        BEGIN
+            VALUE "CompanyName", "Cairn"
+            VALUE "FileDescription", "Cairn 分析主控台"
+            VALUE "FileVersion", "0.1.0.0"
+            VALUE "InternalName", "CairnConsole"
+            VALUE "OriginalFilename", "CairnConsole.exe"
+            VALUE "ProductName", "Cairn M0"
+            VALUE "ProductVersion", "0.1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x404, 1200
+    END
+END
+
+// ---- 前端資源（ui-web/dist）----
+#include "assets.rc"

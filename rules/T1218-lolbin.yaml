@@ -1,0 +1,145 @@
+# ============================================================
+# LOLBin / 防禦規避（part2 §2.5）
+#   R-T1218-001  M0 首批 · enabled   紅隊矩陣 #6 T1218.011
+#   R-T1562-001  M0 首批 · enabled   紅隊矩陣 #10 T1562.001
+#   R-T1112-001  延伸矩陣 · dryrun   T1112 #8
+#   R-T1574-001  延伸矩陣 · dryrun   T1574.002 #1（DLL 側載；誤報高風險規則，首發 dryrun）
+# ============================================================
+id: R-T1218-001
+title: rundll32 / regsvr32 / mshta 從網路或暫存目錄執行 payload
+description: >
+  以系統內建的代理執行工具載入遠端 scriptlet、javascript: 協定或使用者暫存目錄中的 DLL/HTA，
+  繞過應用程式白名單。同一程序樹隨後出現外連時 booster 升分。
+severity: high
+attack: [T1218.011, T1218.010, T1218.005]
+status: enabled
+score: 65
+decay: 600s
+deterministic: false
+requires_events: [1, 3]
+
+event: PROCESS_CREATE
+where:
+  - field: image
+    op: ends_with_any
+    value: ['\rundll32.exe', '\regsvr32.exe', '\mshta.exe']
+  - field: command_line
+    op: contains_any
+    value: ['http:', 'https:', 'javascript:', 'vbscript:', 'scrobj.dll', '/i:', '.sct', '\appdata\', '\temp\',
+            '\users\public\', '\downloads\', 'getobject(', 'runhtmlapplication']
+
+boosters:
+  - id: lolbin_outbound
+    event: NETWORK_CONNECT
+    score: 20
+    where:
+      - field: image
+        op: ends_with_any
+        value: ['\rundll32.exe', '\regsvr32.exe', '\mshta.exe']
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false
+---
+id: R-T1562-001
+title: 停用 Defender、竄改防護設定或清除事件日誌
+description: >
+  以 Set-MpPreference / sc / net stop 停用 Microsoft Defender、加入排除路徑，
+  寫入 DisableAntiSpyware 等登錄值，或以 wevtutil / auditpol 清除與停用稽核記錄。
+severity: high
+attack: [T1562.001, T1562.002]
+status: enabled
+score: 85
+decay: 900s
+deterministic: false
+requires_events: [1, 12, 13]
+
+event: [PROCESS_CREATE, REGISTRY_SET, SCRIPT_BLOCK]
+where:
+  - any_of:
+      - field: command_line
+        op: contains_any
+        value: ['-disablerealtimemonitoring $true', '-disablerealtimemonitoring 1', '-disablebehaviormonitoring $true',
+                '-disableioavprotection $true', '-disablescriptscanning $true', '-disableblockatfirstseen $true',
+                'add-mppreference -exclusionpath', 'add-mppreference -exclusionprocess',
+                'sc stop windefend', 'sc config windefend', 'sc delete windefend', 'net stop windefend',
+                'wevtutil cl ', 'wevtutil clear-log', 'clear-eventlog', 'auditpol /clear', 'auditpol /remove',
+                'success:disable failure:disable', 'set-mppreference -disableintrusionpreventionsystem $true']
+      - field: script_block
+        op: contains_any
+        value: ['-disablerealtimemonitoring $true', '-disablebehaviormonitoring $true', '-disableioavprotection $true',
+                'add-mppreference -exclusionpath', 'clear-eventlog', 'remove-eventlog']
+      - field: registry_path
+        op: ends_with_any
+        value: ['\windows defender\disableantispyware', '\windows defender\disableantivirus',
+                '\windows defender\real-time protection\disablerealtimemonitoring',
+                '\windows defender\real-time protection\disablebehaviormonitoring',
+                '\windows defender\real-time protection\disableioavprotection',
+                '\services\windefend\start', '\services\eventlog\start']
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false
+---
+id: R-T1112-001
+title: 竄改防護相關登錄鍵值（SmartScreen / UAC / Tamper Protection）
+description: >
+  停用 UAC（EnableLUA=0）、SmartScreen 或 Defender Tamper Protection 的登錄寫入。
+severity: medium
+attack: [T1112, T1562.001]
+status: dryrun
+score: 70
+decay: 900s
+deterministic: false
+requires_events: [12, 13]
+
+event: [REGISTRY_SET, REGISTRY_ADD]
+where:
+  - field: registry_path
+    op: ends_with_any
+    value: ['\policies\system\enablelua', '\policies\system\consentpromptbehavioradmin',
+            '\windows\system\enablesmartscreen', '\explorer\smartscreenenabled',
+            '\windows defender\features\tamperprotection']
+  - field: image
+    op: not_ends_with_any
+    value: ['\msiexec.exe', '\trustedinstaller.exe', '\tiworker.exe', '\svchost.exe', '\msmpeng.exe']
+
+response:
+  on_score_ge: 80
+  actions: [alert]
+  require_confirmation: true
+---
+id: R-T1574-001
+title: 系統程序從使用者可寫目錄載入未簽章 DLL（DLL 側載）
+description: >
+  簽章的系統或應用程式載入位於使用者可寫目錄、且未通過簽章驗證的 DLL（Sysmon EID 7）。
+  需正規化器將 EID 7 的 ImageLoaded 放入 target_filename、Signed/SignatureStatus 放入 signature_valid。
+severity: medium
+attack: [T1574.002]
+status: dryrun
+score: 45
+decay: 600s
+deterministic: false
+requires_events: [1, 7]
+
+event: IMAGE_LOAD
+where:
+  - field: target_filename
+    op: contains_any
+    value: ['\appdata\', '\temp\', '\users\public\', '\downloads\', '\programdata\']
+  - field: target_filename
+    op: ends_with
+    value: '.dll'
+  - field: signature_valid
+    op: equals
+    value: false
+  - field: image
+    op: not_contains_any
+    value: ['\appdata\local\microsoft\teams\', '\appdata\local\programs\microsoft vs code\']
+
+response:
+  on_score_ge: 80
+  actions: [alert]
+  require_confirmation: true
