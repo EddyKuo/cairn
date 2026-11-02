@@ -1,0 +1,120 @@
+# ============================================================
+# 注入類規則（part2 §2.5「注入 / 執行」）
+#   R-T1055-001  M0 首批 · enabled   紅隊矩陣：（Office 情境，W2 出場條件 2）
+#   R-T1055-002  M0 首批 · enabled   紅隊矩陣 #2 T1055.002、#3 T1055.001（必過）
+#   R-T1055-003  延伸矩陣 · dryrun   T1055.012 —— 驗證通過前不得 enabled（part4 §4.5.2 原則）
+# 字串比對一律不分大小寫；路徑常數請用單引號（YAML 單引號內反斜線為字面值）。
+# ============================================================
+id: R-T1055-001
+title: Office 應用程式產生腳本直譯器並於短時間內注入其他程序
+description: >
+  典型的釣魚附件攻擊鏈：使用者開啟惡意 Office 文件，巨集啟動 PowerShell/WScript，
+  隨後以遠端執行緒注入合法程序以躲避偵測。
+severity: critical
+attack: [T1566.001, T1059.001, T1055.001]
+status: enabled
+score: 70
+decay: 600s
+deterministic: false
+requires_events: [1, 8]
+
+sequence:
+  within: 120s
+  correlate_by: process_tree_root
+  steps:
+    - id: office_spawn
+      event: PROCESS_CREATE
+      where:
+        - field: parent_image
+          op: ends_with_any
+          value: ['\winword.exe', '\excel.exe', '\powerpnt.exe', '\outlook.exe', '\msaccess.exe']
+        - field: image
+          op: ends_with_any
+          value: ['\powershell.exe', '\pwsh.exe', '\cmd.exe', '\wscript.exe', '\cscript.exe',
+                  '\mshta.exe', '\rundll32.exe', '\regsvr32.exe']
+
+    - id: remote_inject
+      event: REMOTE_THREAD
+      where:
+        - field: process_guid
+          op: equals_ref
+          value: office_spawn.process_guid
+        - field: target_image
+          op: not_ends_with_any
+          value: ['\cairnagent.exe', '\msmpeng.exe']
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false
+---
+id: R-T1055-002
+title: 遠端執行緒注入至其他程序（CreateRemoteThread）
+description: >
+  非系統元件以 CreateRemoteThread 對其他程序注入程式碼（Sysmon EID 8）。
+  依紅隊矩陣 #3 的註記放寬「系統程序」條件：mavinject 的目標是 notepad，因此不限定目標為系統程序，
+  改以排除已知的合法注入者（csrss、wininit、防毒、偵錯器）降低誤報。
+  由殼層（PowerShell/cmd/wscript）啟動的注入者另加 booster —— 合法注入元件極少由殼層直接啟動。
+severity: high
+attack: [T1055.001, T1055.002]
+status: enabled
+score: 60
+decay: 600s
+deterministic: false
+requires_events: [8]
+
+event: REMOTE_THREAD
+where:
+  - field: image
+    op: not_ends_with_any
+    value: ['\csrss.exe', '\wininit.exe', '\services.exe', '\svchost.exe', '\lsass.exe', '\werfault.exe',
+            '\dwm.exe', '\msmpeng.exe', '\vsjitdebugger.exe', '\devenv.exe', '\cairnagent.exe',
+            '\sysmon64.exe', '\sysmon.exe', '\taskmgr.exe']
+  - field: target_image
+    op: not_ends_with_any
+    value: ['\cairnagent.exe']
+
+boosters:
+  - id: shell_launched_injector
+    event: REMOTE_THREAD
+    score: 25
+    where:
+      - field: parent_image
+        op: ends_with_any
+        value: ['\powershell.exe', '\pwsh.exe', '\cmd.exe', '\wscript.exe', '\cscript.exe', '\mshta.exe']
+  - id: injector_in_user_dir
+    event: REMOTE_THREAD
+    score: 20
+    where:
+      - field: image_in_user_writable_dir
+        op: equals
+        value: true
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false
+---
+id: R-T1055-003
+title: 程序映像遭竄改（Process Hollowing / Herpaderping）
+description: >
+  Sysmon EID 25（ProcessTampering）：程序的記憶體映像與磁碟上的檔案不一致，
+  典型於 Process Hollowing 與 Herpaderping。延伸矩陣規則，驗證通過前維持 dryrun。
+severity: critical
+attack: [T1055.012]
+status: dryrun
+score: 90
+decay: 600s
+deterministic: false
+requires_events: [25]
+
+event: PROCESS_TAMPERING
+where:
+  - field: image
+    op: not_ends_with_any
+    value: ['\msedge.exe', '\chrome.exe', '\firefox.exe', '\msedgewebview2.exe', '\devenv.exe']
+
+response:
+  on_score_ge: 95
+  actions: [terminate_process_tree, alert]
+  require_confirmation: false

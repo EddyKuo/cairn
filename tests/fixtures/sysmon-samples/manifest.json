@@ -1,0 +1,117 @@
+[
+  {
+    "name": "eid01_process_create",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid03_network_connect",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid05_process_terminate",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid07_image_load_unsigned",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid07_image_load_signed",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid08_create_remote_thread",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid10_process_access_lsass",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid11_file_create",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid12_registry_create_key",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid13_registry_set_run",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid14_registry_rename",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid15_file_stream_hash",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid17_pipe_create",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid18_pipe_connect",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid22_dns_query",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid23_file_delete_archived",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid25_process_tampering",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "eid26_file_delete_detected",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "edge_entities_cmdline",
+    "kind": "sysmon",
+    "expect_ok": true
+  },
+  {
+    "name": "edge_missing_guid",
+    "kind": "sysmon",
+    "expect_ok": false
+  },
+  {
+    "name": "edge_unsupported_eid6",
+    "kind": "sysmon",
+    "expect_ok": false
+  },
+  {
+    "name": "ps4104_script_block",
+    "kind": "powershell",
+    "expect_ok": true
+  },
+  {
+    "name": "sec4688_process_create",
+    "kind": "security",
+    "expect_ok": true
+  }
+]

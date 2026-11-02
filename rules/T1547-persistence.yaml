@@ -1,0 +1,177 @@
+# ============================================================
+# 持久化（part2 §2.5「持久化」）
+#   R-T1547-001  M0 首批 · enabled   紅隊矩陣 #4 T1547.001
+#   R-T1053-001  M0 首批 · dryrun    紅隊矩陣 #5 T1053.005（首發 dryrun：備份/更新排程誤報高，part2 §2.5）
+#   R-T1543-001  延伸矩陣 · dryrun   T1543.003 #1
+#   R-T1546-001  延伸矩陣 · dryrun   T1546.012 #1
+# 持久化 #4/#5 需 >= 1/2 通過；dryrun 規則不計入通過項，故 #4 實際上是必過。
+# ============================================================
+id: R-T1547-001
+title: 非安裝程式寫入 Run / RunOnce 自動啟動鍵
+description: >
+  寫入 HKLM/HKCU 的 Run、RunOnce、Policies\Explorer\Run 鍵值（Sysmon EID 13）。
+  寫入者非安裝程式時計分；指向使用者可寫目錄或由殼層工具寫入時另加 booster。
+  依紅隊矩陣 #4 的描述（「非安裝程式寫入 Run 鍵」）不強制要求目標為使用者目錄。
+severity: medium
+attack: [T1547.001]
+status: enabled
+score: 55
+decay: 900s
+deterministic: false
+requires_events: [1, 12, 13]
+
+event: [REGISTRY_SET, REGISTRY_ADD]
+where:
+  - field: registry_path
+    op: contains_any
+    value: ['\currentversion\run\', '\currentversion\runonce\', '\currentversion\runonceex\',
+            '\currentversion\runservices\', '\policies\explorer\run\']
+  - field: image
+    op: not_ends_with_any
+    value: ['\msiexec.exe', '\trustedinstaller.exe', '\tiworker.exe', '\onedrive.exe', '\onedrivesetup.exe',
+            '\teams.exe', '\update.exe', '\setup.exe', '\cairnagent.exe']
+
+boosters:
+  - id: points_to_user_dir
+    event: [REGISTRY_SET, REGISTRY_ADD]
+    score: 15
+    where:
+      - field: registry_path
+        op: contains_any
+        value: ['\currentversion\run', '\policies\explorer\run']
+      - field: registry_details
+        op: contains_any
+        value: ['\appdata\', '\temp\', '\users\public\', '\programdata\', '\downloads\']
+  - id: written_by_shell_tool
+    event: [REGISTRY_SET, REGISTRY_ADD]
+    score: 10
+    where:
+      - field: image
+        op: ends_with_any
+        value: ['\reg.exe', '\powershell.exe', '\pwsh.exe', '\cmd.exe', '\wscript.exe', '\cscript.exe', '\mshta.exe']
+
+response:
+  on_score_ge: 80
+  actions: [alert]
+  require_confirmation: true
+---
+id: R-T1053-001
+title: schtasks / PowerShell 建立高頻或開機執行的可疑排程
+description: >
+  以 schtasks /create 或 Register-ScheduledTask 建立開機、登入或每分鐘執行，
+  或執行內容指向腳本直譯器 / 使用者可寫目錄的排程工作。
+severity: medium
+attack: [T1053.005]
+status: dryrun
+score: 50
+decay: 900s
+deterministic: false
+requires_events: [1, 4104]
+
+event: [PROCESS_CREATE, SCRIPT_BLOCK]
+where:
+  - any_of:
+      - all_of:
+          - field: image
+            op: ends_with
+            value: '\schtasks.exe'
+          - field: command_line
+            op: contains
+            value: '/create'
+          - field: command_line
+            op: contains_any
+            value: ['onstart', 'onlogon', '/sc minute', '/sc once', '\appdata\', '\temp\', '\users\public\',
+                    'powershell', 'pwsh', 'cmd /c', 'cmd.exe /c', 'mshta', 'rundll32', 'regsvr32', 'wscript', 'cscript']
+      - all_of:
+          - field: script_block
+            op: contains
+            value: 'register-scheduledtask'
+          - field: script_block
+            op: contains_any
+            value: ['-atstartup', '-atlogon', 'new-scheduledtasktrigger', 'powershell', 'cmd.exe']
+
+response:
+  on_score_ge: 80
+  actions: [alert]
+  require_confirmation: true
+---
+id: R-T1543-001
+title: 建立服務並指向非系統目錄的執行檔
+description: >
+  sc.exe create / New-Service 建立指向非 Windows、非 Program Files 目錄的服務，
+  或直接寫入 Services\<name>\ImagePath 登錄值。
+severity: high
+attack: [T1543.003]
+status: dryrun
+score: 60
+decay: 900s
+deterministic: false
+requires_events: [1, 12, 13]
+
+event: [PROCESS_CREATE, REGISTRY_SET]
+where:
+  - any_of:
+      - all_of:
+          - field: image
+            op: ends_with
+            value: '\sc.exe'
+          - field: command_line
+            op: contains
+            value: ' create '
+          - field: command_line
+            op: not_contains_any
+            value: ['\windows\system32\', 'c:\program files\', 'c:\program files (x86)\']
+      - all_of:
+          - field: registry_path
+            op: contains
+            value: '\currentcontrolset\services\'
+          - field: registry_path
+            op: ends_with
+            value: '\imagepath'
+          - field: registry_details
+            op: not_contains_any
+            value: ['\windows\system32\', 'c:\program files\', 'c:\program files (x86)\', '\systemroot\', 'system32\']
+          - field: image
+            op: not_ends_with_any
+            value: ['\services.exe', '\msiexec.exe', '\trustedinstaller.exe', '\tiworker.exe']
+
+response:
+  on_score_ge: 80
+  actions: [alert]
+  require_confirmation: true
+---
+id: R-T1546-001
+title: IFEO Debugger 或 Winlogon Shell / Userinit 遭竄改
+description: >
+  Image File Execution Options 的 Debugger 值可讓任一程序啟動時先執行攻擊者程式；
+  Winlogon 的 Shell / Userinit 值則在每次登入時執行。
+severity: high
+attack: [T1546.012, T1547.004]
+status: dryrun
+score: 80
+decay: 900s
+deterministic: false
+requires_events: [12, 13]
+
+event: [REGISTRY_SET, REGISTRY_ADD]
+where:
+  - any_of:
+      - all_of:
+          - field: registry_path
+            op: contains
+            value: '\image file execution options\'
+          - field: registry_path
+            op: ends_with_any
+            value: ['\debugger', '\globalflag']
+      - all_of:
+          - field: registry_path
+            op: contains
+            value: '\windows nt\currentversion\winlogon\'
+          - field: registry_path
+            op: ends_with_any
+            value: ['\shell', '\userinit']
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false

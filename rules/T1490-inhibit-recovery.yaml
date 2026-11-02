@@ -1,0 +1,36 @@
+# ============================================================
+# 抑制系統復原（part2 §2.5）
+#   R-T1490-001  M0 首批 · enabled   紅隊矩陣 #8 T1490 #1/#2/#5（必過）
+# 三種載體（vssadmin / wmic shadowcopy / PowerShell WMI）皆須命中，否則等於只綁 vssadmin 字串。
+# 分數 80：依 C-8 原則 4，80–94 級即使規則列 terminate 也只會自動執行 suspend。
+# ============================================================
+id: R-T1490-001
+title: 刪除磁碟區陰影複製或停用系統復原
+description: >
+  勒索軟體在加密前後清除陰影複製與備份目錄，阻止受害者自行還原。
+  涵蓋 vssadmin delete shadows、wmic shadowcopy delete、PowerShell Win32_ShadowCopy .Delete()、
+  bcdedit recoveryenabled no、wbadmin delete catalog/systemstatebackup。
+severity: critical
+attack: [T1490]
+status: enabled
+score: 80
+decay: 600s
+deterministic: false
+requires_events: [1, 4104]
+
+event: [PROCESS_CREATE, SCRIPT_BLOCK]
+where:
+  - any_of:
+      - field: command_line
+        op: matches
+        value: '(?i)(vssadmin.*delete\s+shadows|vssadmin.*resize\s+shadowstorage|wmic.*shadowcopy.*delete|win32_shadowcopy|bcdedit.*recoveryenabled\s+no|bcdedit.*bootstatuspolicy\s+ignoreallfailures|wbadmin.*delete\s+(catalog|systemstatebackup|backup))'
+        prefilter: [vssadmin, wmic, shadowcopy, bcdedit, wbadmin]
+      - field: script_block
+        op: matches
+        value: '(?i)(win32_shadowcopy[\s\S]*\.delete\(|vssadmin.*delete\s+shadows|remove-ciminstance[\s\S]*shadowcopy)'
+        prefilter: [shadowcopy, vssadmin]
+
+response:
+  on_score_ge: 80
+  actions: [terminate_process_tree, alert]
+  require_confirmation: false

@@ -1,0 +1,122 @@
+{
+  "$comment": "Cairn M0 預設政策。數值來源見各欄位的 _src。偵測核心的 policy struct 以此為準對齊；未知欄位忽略並記錄（向前相容，SDD-03 §10.1）。",
+  "format": 1,
+
+  "scoring": {
+    "_src": "part2 §2.4.3 / SDD-02 §4.3 / CONVENTIONS C-8-2",
+    "threshold_watched": 40,
+    "threshold_alerted": 80,
+    "threshold_blocked": 95,
+    "hysteresis": 5,
+    "repeat_hit_cooldown_min_ms": 5000,
+    "decay_half_life_policy": "max_of_hit_rules",
+    "max_score": 100
+  },
+
+  "response": {
+    "_src": "part2 §2.7 / SDD-03 §8 / CONVENTIONS C-8-4；demo 時自動回應預設關閉（part1 §5）",
+    "auto_response_enabled": false,
+    "auto_on_score_ge": 95,
+    "auto_terminate_requires_deterministic_or_blocked": true,
+    "allowed_actions": ["suspend_process", "terminate_process_tree", "quarantine_file", "firewall_block"],
+    "execution_order": ["suspend_process", "quarantine_file", "firewall_block", "terminate_process_tree"],
+    "confirmation_token_ttl_seconds": 120,
+    "typed_confirmation_required_for": ["terminate_process_tree"],
+    "firewall_rule_prefix": "Cairn - Block ",
+    "quarantine_dir": "%ProgramData%\\Cairn\\quarantine",
+    "action_timeout_ms": 2000
+  },
+
+  "learning_mode": {
+    "_src": "part2 §2.5 / part3 §3.2.1：安裝後 3 天內僅記錄不阻擋，期滿產出建議排除",
+    "enabled": true,
+    "total_days": 3,
+    "forced_dryrun_rules": ["R-T1574-001", "R-T1543-001", "R-T1053-001", "R-T1071-001"],
+    "suggestion_min_dryrun_hits": 3
+  },
+
+  "protection": {
+    "_src": "part3 §3.8.1 端點 19/20",
+    "pause_durations": ["15m", "1h", "until_reboot"]
+  },
+
+  "telemetry": {
+    "_src": "part2 §2.2 / SDD-01 §3",
+    "sources": { "sysmon": true, "powershell_4104": true, "security_4688_fallback": true },
+    "raw_queue_capacity": 65536,
+    "analysis_queue_capacity": 32768,
+    "silence_timeout_seconds": 120,
+    "resubscribe_backoff_max_seconds": 60,
+    "max_reconnect_attempts": 10,
+    "bookmark_flush_events": 1000,
+    "bookmark_flush_seconds": 5,
+    "interner_max_entries": 100000,
+    "keep_raw_xml": false,
+    "max_command_line_bytes": 32768,
+    "max_script_block_bytes": 262144
+  },
+
+  "process_tree": {
+    "_src": "part2 §2.4.1 / SDD-02 §4.2",
+    "max_nodes": 50000,
+    "retention_after_exit_minutes": 30,
+    "orphan_grace_ms": 5000
+  },
+
+  "storage": {
+    "_src": "part2 §2.3 / SDD-02 §6",
+    "db_path": "%ProgramData%\\Cairn\\cairn.db",
+    "write_queue_capacity": 100000,
+    "batch_max_rows": 1000,
+    "batch_max_age_ms": 200,
+    "busy_retries": 5,
+    "retention_interval_minutes": 60,
+    "events_retention_days": 7,
+    "alerts_retention_days": 90,
+    "health_retention_days": 30,
+    "max_db_size_mb": 4096,
+    "reader_query_timeout_ms": 2000
+  },
+
+  "llm": {
+    "_src": "part2 §2.6 / SDD-03 §7",
+    "enabled": true,
+    "server_path": "%ProgramFiles%\\Cairn\\llama\\llama-server.exe",
+    "model_path": "%ProgramData%\\Cairn\\models\\qwen2.5-3b-instruct-q4_k_m.gguf",
+    "fallback_model_path": "%ProgramData%\\Cairn\\models\\qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "ctx_size": 4096,
+    "gpu_layers": 999,
+    "parallel": 1,
+    "min_score_for_narrative": 80,
+    "queue_capacity": 32,
+    "idle_unload_seconds": 300,
+    "max_restarts_per_hour": 3,
+    "job_memory_limit_mb": 6144,
+    "timeouts_ms": { "resolve": 1000, "connect": 2000, "send": 5000, "receive": 30000, "total": 30000 },
+    "field_truncate_chars": 512,
+    "timeline_max_events": 40
+  },
+
+  "health": {
+    "_src": "SDD-03 §10.3",
+    "sample_interval_seconds": 30,
+    "watchdog_interval_seconds": 5
+  },
+
+  "ui": {
+    "_src": "part3 §3.10 / part4 §4.3.0",
+    "poll_interval_ms": 2000,
+    "toast_min_score": 80
+  },
+
+  "logging": {
+    "_src": "SDD-03 §10.2",
+    "level": "info",
+    "file": "%ProgramData%\\Cairn\\logs\\cairn-svc.log",
+    "max_file_mb": 10,
+    "max_files": 5,
+    "log_prompts": false
+  }
+}

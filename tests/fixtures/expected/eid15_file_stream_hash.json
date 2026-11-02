@@ -1,0 +1,13 @@
+{
+  "eid": 15,
+  "image": "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe",
+  "pid": 7712,
+  "priority": 2,
+  "process_guid": "{E7C1A2B4-2222-6A1E-4B1E-01DCF0A2B3C4}",
+  "sha256": "4C7E2A1F9B3D5E80A6C4F2B8D1E39A75C0B6E4D2F8A13C9E5B7D0F2A4C6E8B13",
+  "source": "sysmon",
+  "target_filename": "C:\\Users\\eddy\\Downloads\\invoice_Q3.docm:Zone.Identifier",
+  "time_ms": 1787120510000,
+  "type": "FILE_STREAM_HASH",
+  "user": "contoso\\eddy"
+}

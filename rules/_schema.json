@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cairn.local/schemas/rule.schema.json",
+  "title": "Cairn M0 規則",
+  "description": "SDD-02 §5.2.0 規則 YAML Schema 的機器可讀版本，供 CI 驗證。權威語意以 RuleCompiler 為準（例如 equals_ref 只能引用前序步驟、threshold.within 不得大於 sequence.within）。",
+  "type": "object",
+  "required": ["id", "title", "severity", "score", "decay", "requires_events"],
+  "oneOf": [
+    { "required": ["sequence"], "not": { "required": ["event"] } },
+    { "required": ["event"], "not": { "required": ["sequence"] } }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^R-T[0-9.]+-\\d{3}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string" },
+    "severity": { "enum": ["low", "medium", "high", "critical"] },
+    "status": { "enum": ["enabled", "dryrun", "disabled"], "default": "dryrun" },
+    "score": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "decay": { "$ref": "#/$defs/duration" },
+    "deterministic": { "type": "boolean", "default": false },
+    "requires_events": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 1 },
+    "attack": { "type": "array", "items": { "type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$" } },
+
+    "sequence": {
+      "type": "object",
+      "required": ["within", "correlate_by", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "within": { "$ref": "#/$defs/duration" },
+        "correlate_by": { "enum": ["process_tree_root", "process_guid"] },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["id", "event"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "event": { "$ref": "#/$defs/eventTypes" },
+              "where": { "$ref": "#/$defs/conditionList" },
+              "threshold": { "$ref": "#/$defs/threshold" }
+            }
+          }
+        }
+      }
+    },
+
+    "event": { "$ref": "#/$defs/eventTypes" },
+    "where": { "$ref": "#/$defs/conditionList" },
+    "threshold": { "$ref": "#/$defs/threshold" },
+    "within": { "$ref": "#/$defs/duration" },
+    "correlate_by": { "enum": ["process_tree_root", "process_guid"] },
+
+    "boosters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "event", "score"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "event": { "$ref": "#/$defs/eventTypes" },
+          "score": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "where": { "$ref": "#/$defs/conditionList" }
+        }
+      }
+    },
+
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "on_score_ge": { "enum": [40, 80, 95], "default": 80 },
+        "actions": {
+          "type": "array",
+          "items": { "enum": ["suspend_process", "terminate_process_tree", "quarantine_file", "firewall_block", "alert"] }
+        },
+        "require_confirmation": { "type": "boolean", "default": true }
+      }
+    },
+
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["path", "path_glob", "sha256", "signer", "rule_id", "cmdline_glob"] },
+          "value": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "duration": { "type": "string", "pattern": "^[0-9]+[sm]$" },
+    "eventType": {
+      "enum": [
+        "PROCESS_CREATE", "NETWORK_CONNECT", "PROCESS_TERMINATE", "IMAGE_LOAD", "REMOTE_THREAD",
+        "RAW_ACCESS_READ", "PROCESS_ACCESS", "FILE_CREATE", "REGISTRY_ADD", "REGISTRY_SET",
+        "REGISTRY_RENAME", "FILE_STREAM_HASH", "PIPE_CREATE", "PIPE_CONNECT", "WMI_EVENT", "DNS_QUERY",
+        "FILE_DELETE", "PROCESS_TAMPERING", "SCRIPT_BLOCK", "SECURITY_PROCESS_CREATE",
+        "REG_SET", "REGISTRY_EVENT", "CREATE_REMOTE_THREAD"
+      ]
+    },
+    "eventTypes": {
+      "oneOf": [
+        { "$ref": "#/$defs/eventType" },
+        { "type": "array", "items": { "$ref": "#/$defs/eventType" }, "minItems": 1 }
+      ]
+    },
+    "threshold": {
+      "type": "object",
+      "required": ["count", "within"],
+      "additionalProperties": false,
+      "properties": {
+        "count": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "within": { "$ref": "#/$defs/duration" },
+        "distinct_field": { "$ref": "#/$defs/field" }
+      }
+    },
+    "field": {
+      "enum": [
+        "image", "parent_image", "command_line", "parent_command_line", "user", "integrity_level", "sha256",
+        "signer", "signature_signer", "signature_valid", "process_guid", "parent_process_guid",
+        "root_process_guid", "pid", "parent_pid", "target_image", "target_process_guid", "granted_access",
+        "target_filename", "registry_event_type", "registry_path", "registry_details", "dest_ip",
+        "destination_ip", "dest_port", "destination_port", "dest_hostname", "destination_hostname",
+        "query_name", "query_results", "pipe_name", "script_block", "tamper_type", "event_id",
+        "source_event_id", "tree_depth", "tree_score", "image_is_signed", "image_in_user_writable_dir",
+        "parent_is_office", "parent_guid"
+      ]
+    },
+    "conditionList": {
+      "oneOf": [
+        { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+        { "$ref": "#/$defs/condition" }
+      ]
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["any_of"],
+          "additionalProperties": false,
+          "properties": { "any_of": { "$ref": "#/$defs/conditionList" } }
+        },
+        {
+          "type": "object",
+          "required": ["all_of"],
+          "additionalProperties": false,
+          "properties": { "all_of": { "$ref": "#/$defs/conditionList" } }
+        },
+        {
+          "type": "object",
+          "required": ["field", "op", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "field": { "$ref": "#/$defs/field" },
+            "op": {
+              "enum": [
+                "equals", "not_equals", "contains", "not_contains", "starts_with", "not_starts_with",
+                "ends_with", "not_ends_with", "in", "not_in", "matches", "not_matches", "gt", "lt", "has_any",
+                "equals_ref", "not_equals_ref", "contains_any", "not_contains_any", "starts_with_any",
+                "not_starts_with_any", "ends_with_any", "not_ends_with_any"
+              ]
+            },
+            "value": {},
+            "prefilter": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ]
+    }
+  }
+}

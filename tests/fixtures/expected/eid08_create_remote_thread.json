@@ -1,0 +1,14 @@
+{
+  "eid": 8,
+  "image": "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe",
+  "pid": 7712,
+  "priority": 0,
+  "process_guid": "{E7C1A2B4-2222-6A1E-4B1E-01DCF0A2B3C4}",
+  "source": "sysmon",
+  "target_image": "c:\\windows\\explorer.exe",
+  "target_pid": 1204,
+  "target_process_guid": "{A1B2C3D4-3333-6A1E-1A2B-01DCF0A29876}",
+  "time_ms": 1787120524560,
+  "type": "REMOTE_THREAD",
+  "user": "contoso\\eddy"
+}

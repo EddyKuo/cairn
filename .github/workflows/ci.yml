@@ -1,0 +1,175 @@
+# ============================================================
+# Cairn M0 CI（part4 §4.5.1 的 CI 閘門）
+#   windows-debug : vcpkg + ui-web 建置 + x64-debug 建置 + ctest
+#   windows-asan  : x64-asan 建置 + ctest（ASan 是 CI 一等公民）
+#   core-only     : ubuntu / macOS 以 core-only preset 建置並跑 core.* 測試（src/core 零 Win32 的機器把關）
+#   docs-and-rules: mermaid 驗證 + 規則 YAML schema 驗證 + clang-format 檢查
+# ============================================================
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # vcpkg 二進位快取（本機目錄 + actions/cache）
+  VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-bincache
+  VCPKG_DISABLE_METRICS: 1
+
+jobs:
+  windows:
+    name: windows-${{ matrix.preset }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [x64-debug, x64-asan]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 讀取 vcpkg builtin-baseline
+        id: baseline
+        shell: pwsh
+        run: |
+          $b = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          "sha=$b" >> $env:GITHUB_OUTPUT
+
+      - name: 取得 vcpkg（固定在 baseline）
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:RUNNER_TEMP\vcpkg"
+          git -C "$env:RUNNER_TEMP\vcpkg" checkout ${{ steps.baseline.outputs.sha }}
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          "VCPKG_ROOT=$env:RUNNER_TEMP\vcpkg" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force -Path "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}" | Out-Null
+
+      - name: vcpkg 二進位快取
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-x64-windows-static-md-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-x64-windows-static-md-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 建置前端（產物編入 CairnConsole.exe 的 RCDATA）
+        shell: pwsh
+        working-directory: ui-web
+        run: |
+          if (Test-Path package-lock.json) { npm ci } else { npm install }
+          npm run build
+
+      - name: MSVC 開發環境
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+      - name: 上傳測試結果
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/Testing/
+          if-no-files-found: ignore
+
+  core-only:
+    name: core-only-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 讀取 vcpkg builtin-baseline
+        id: baseline
+        shell: bash
+        run: echo "sha=$(jq -r '."builtin-baseline"' vcpkg.json)" >> "$GITHUB_OUTPUT"
+
+      - name: 取得 vcpkg
+        shell: bash
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$RUNNER_TEMP/vcpkg"
+          git -C "$RUNNER_TEMP/vcpkg" checkout ${{ steps.baseline.outputs.sha }}
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=$RUNNER_TEMP/vcpkg" >> "$GITHUB_ENV"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - name: 安裝 Ninja（macOS）
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: 安裝 Ninja（Linux）
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: vcpkg 二進位快取
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ matrix.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-${{ matrix.os }}-
+
+      # core-only preset 沒有指定 toolchain，這裡以 -D 補上 vcpkg（manifest 中的 wil/webview2 限 windows，不會安裝）
+      - name: Configure
+        run: cmake --preset core-only -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build --preset core-only
+
+      - name: Test（core.*）
+        run: ctest --test-dir build/core-only -R "core\." --output-on-failure
+
+  docs-and-rules:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Mermaid UML 驗證（CONVENTIONS C-10）
+        working-directory: tools
+        run: |
+          npm ci
+          npm run check:uml
+
+      - name: 規則 YAML schema 驗證（rules/_schema.json）
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=()
+          for f in rules/*.yaml; do
+            case "$(basename "$f")" in exclusions*) continue ;; esac
+            files+=("-d" "$f")
+          done
+          if [ ${#files[@]} -eq 0 ]; then echo "rules/ 下沒有規則檔"; exit 1; fi
+          # 依 _schema.json 宣告的 $schema 決定 ajv 的 spec（draft-07 為 ajv 預設）
+          spec=""
+          if grep -q '2020-12' rules/_schema.json; then spec="--spec=draft2020"; elif grep -q '2019-09' rules/_schema.json; then spec="--spec=draft2019"; fi
+          npx --yes -p ajv-cli@5.0.0 -p ajv-formats@2.1.1 ajv validate $spec --strict=false -c ajv-formats -s rules/_schema.json "${files[@]}"
+
+      # 程式碼格式：首次導入時程式碼尚未全面 clang-format，先以非阻擋方式回報（part4 §4.5.1 要求最終改為阻擋）
+      - name: clang-format 檢查
+        continue-on-error: true
+        shell: bash
+        run: |
+          sudo apt-get install -y clang-format
+          find src tests -name '*.h' -o -name '*.cpp' | xargs clang-format --dry-run --Werror

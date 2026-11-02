@@ -1,0 +1,52 @@
+# ============================================================
+# 腳本執行（part2 §2.5）
+#   R-T1059-001  M0 首批 · enabled   紅隊矩陣 #1 T1059.001
+# ⚠ 依賴 EID 4104：Script Block Logging 預設關閉，須由 Check-Prereqs.ps1 確認已啟用（part4 §4.1）。
+# 同一行為的 EID 1 與 4104 會各命中一次；ScoreBoard 的重複命中冷卻（max(半衰期/4, 5s)）保證只計分一次。
+# ============================================================
+id: R-T1059-001
+title: PowerShell 編碼命令或記憶體下載執行（IEX + DownloadString）
+description: >
+  PowerShell 以 -EncodedCommand 執行 Base64 命令，或以 IEX / Invoke-Expression 搭配
+  Net.WebClient.DownloadString 直接在記憶體中下載並執行腳本（無檔案落地）。
+severity: high
+attack: [T1059.001, T1027]
+status: enabled
+score: 70
+decay: 600s
+deterministic: false
+requires_events: [1, 4104]
+
+event: [PROCESS_CREATE, SCRIPT_BLOCK]
+where:
+  - any_of:
+      - all_of:
+          - field: image
+            op: ends_with_any
+            value: ['\powershell.exe', '\pwsh.exe', '\powershell_ise.exe']
+          - field: command_line
+            op: matches
+            value: '(?i)\s[-/](e|en|enc|enco|encod|encode|encoded|encodedc|encodedcommand|ec)\s+[a-z0-9+/=]{20,}'
+            prefilter: [' -e', ' /e']
+      - all_of:
+          - field: image
+            op: ends_with_any
+            value: ['\powershell.exe', '\pwsh.exe', '\powershell_ise.exe']
+          - field: command_line
+            op: contains_any
+            value: ['downloadstring', 'downloaddata', 'iex(', 'iex (', 'invoke-expression', 'frombase64string',
+                    'net.webclient).download', 'invoke-mimikatz']
+      - field: script_block
+        op: contains_any
+        value: ['downloadstring(', 'downloaddata(', 'invoke-mimikatz', 'reflection.assembly]::load(',
+                '[system.convert]::frombase64string', 'iex (new-object', 'iex(new-object',
+                'invoke-expression (new-object', 'net.webclient).downloadstring']
+
+response:
+  on_score_ge: 80
+  actions: [suspend_process, alert]
+  require_confirmation: false
+
+exceptions:
+  - kind: cmdline_glob
+    value: '*\Microsoft\Windows\PowerShell\*\PSReadLine*'

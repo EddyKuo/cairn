@@ -1,0 +1,13 @@
+{
+  "eid": 12,
+  "image": "c:\\windows\\system32\\windowspowershell\\v1.0\\powershell.exe",
+  "pid": 7712,
+  "priority": 1,
+  "process_guid": "{E7C1A2B4-2222-6A1E-4B1E-01DCF0A2B3C4}",
+  "registry_event_type": "CreateKey",
+  "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\sethc.exe",
+  "source": "sysmon",
+  "time_ms": 1787120640000,
+  "type": "REGISTRY_ADD",
+  "user": "contoso\\eddy"
+}

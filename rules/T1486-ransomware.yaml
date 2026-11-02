@@ -1,0 +1,79 @@
+# ============================================================
+# 勒索軟體（part2 §2.4.5、§2.5）
+#   R-T1486-001  M0 首批 · enabled   紅隊矩陣 #7 T1486 #8/#10（必過）
+#   R-T1486-002  canary 誘餌檔案 —— 已移出 M0（part4 §4.3.0），不在本檔
+# M0 無 Minifilter，只能偵測後終止，預期仍會損失數十個檔案 —— 須在 UI 與文件中誠實揭露。
+# ============================================================
+id: R-T1486-001
+title: 疑似勒索軟體加密行為（大量檔案改寫並刪除原檔）
+description: >
+  勒索軟體的共通行為特徵：短時間內大量建立新副檔名檔案、刪除原始文件、
+  並嘗試清除磁碟區陰影複製以阻止還原。
+severity: critical
+attack: [T1486, T1490, T1485]
+status: enabled
+score: 95
+decay: 300s
+deterministic: false
+requires_events: [1, 11, 23]
+
+sequence:
+  within: 60s
+  correlate_by: process_tree_root
+  steps:
+    - id: mass_write
+      event: FILE_CREATE
+      threshold:
+        count: 30
+        within: 30s
+        distinct_field: target_filename
+      where:
+        - field: target_filename
+          op: matches
+          value: '\.(locked|encrypted|crypt|crypted|enc|gpg|pgp|akira|lockbit|ryk|[a-z0-9]{6,10})$'
+        - field: target_filename
+          op: contains_any
+          value: ['\documents\', '\desktop\', '\pictures\', '\downloads\', '\users\public\',
+                  '\appdata\local\temp\']
+
+    - id: delete_originals
+      event: FILE_DELETE
+      threshold:
+        count: 20
+        within: 30s
+      where:
+        - field: process_guid
+          op: equals_ref
+          value: mass_write.process_guid
+        - field: target_filename
+          op: ends_with_any
+          value: ['.docx', '.xlsx', '.pptx', '.pdf', '.jpg', '.png', '.txt', '.csv', '.zip', '.doc', '.xls']
+
+boosters:
+  - id: shadow_delete
+    event: PROCESS_CREATE
+    score: 40
+    where:
+      - field: command_line
+        op: matches
+        value: '(?i)(vssadmin.*delete\s+shadows|wmic.*shadowcopy.*delete|bcdedit.*recoveryenabled\s+no|wbadmin.*delete\s+catalog)'
+        prefilter: [vssadmin, wmic, bcdedit, wbadmin]
+  - id: ransom_note
+    event: FILE_CREATE
+    score: 25
+    where:
+      - field: target_filename
+        op: matches
+        value: '(?i)(readme|decrypt|how_to_recover|restore_files|akira_readme)[^\\]*\.(txt|html|hta)$'
+        prefilter: [readme, decrypt, recover, restore]
+
+response:
+  on_score_ge: 95
+  actions: [terminate_process_tree, quarantine_file, firewall_block, alert]
+  require_confirmation: false
+
+exceptions:
+  - kind: signer
+    value: "Veeam Software Group GmbH"
+  - kind: path_glob
+    value: 'C:\Program Files\*\Backup*\*'

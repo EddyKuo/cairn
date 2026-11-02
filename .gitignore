@@ -11,3 +11,13 @@ tools/node_modules/
 # 編輯器
 .vscode/
 .idea/
+
+# 建置產物
+build/
+out/
+reports/
+ui-web/node_modules/
+ui-web/dist/
+*.aps
+*.user
+compile_flags.txt
