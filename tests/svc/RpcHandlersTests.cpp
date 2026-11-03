@@ -318,7 +318,7 @@ TEST(PolicyConfig, ParsesKnownFieldsAndWarnsOnBadTypes)
     EXPECT_EQ(c.llmCtxSize, 8192);              // < 8192 自動校正
     EXPECT_EQ(c.llmMinScoreMilli, 85'000);
     EXPECT_EQ(c.llmPort, 8080);                 // 型別錯誤保留預設
-    EXPECT_EQ(c.dbPath.generic_string(), "C:\\cairn.db");
+    EXPECT_EQ(c.dbPath.wstring(), L"C:\\cairn.db");   // generic_string() 在 Windows 會把 '\' 轉成 '/'
     bool sawUnknown = false, sawPort = false;
     for (const auto& w : c.warnings) {
         sawUnknown |= w.find("mystery") != std::string::npos;

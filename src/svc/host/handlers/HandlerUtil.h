@@ -1,9 +1,11 @@
 // src/svc/host/handlers/HandlerUtil.h          namespace cairn::host::handlers
 // handler 共用的小工具：取唯讀連線、等寫入完成、寫稽核、組 actor 字串。
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "host/HandlerContext.h"
@@ -32,11 +34,13 @@ inline Result<store::ReadOnlyDb*> Reader(const HandlerDeps& d)
 // 投遞寫入並等待 WriterThread 提交（需要新列 id，或後續動作依賴寫入已落地時使用）。
 inline Result<int64_t> WriteAndWait(const HandlerDeps& d, model::WritePayload payload)
 {
-    auto prom = std::make_shared<std::promise<Result<int64_t>>>();
+    // MSVC STL 的 std::promise<T> 要求 T 可預設建構（microsoft/STL#321，ABI 因素未修）；Result 沒有預設建構子，
+    // 因此以 optional 包一層。
+    auto prom = std::make_shared<std::promise<std::optional<Result<int64_t>>>>();
     auto fut  = prom->get_future();
     model::WriteOp op{std::move(payload), [prom](Result<int64_t> r) {
                           try {
-                              prom->set_value(std::move(r));
+                              prom->set_value(std::optional<Result<int64_t>>(std::move(r)));
                           } catch (...) {
                               // 已設定過（不應發生）：忽略
                           }
@@ -45,7 +49,8 @@ inline Result<int64_t> WriteAndWait(const HandlerDeps& d, model::WritePayload pa
     if (fut.wait_for(d.writeTimeout) != std::future_status::ready) {
         return MakeError(ErrorCode::Timeout, "寫入未在時限內完成");
     }
-    return fut.get();
+    std::optional<Result<int64_t>> r = fut.get();
+    return std::move(*r);
 }
 
 inline std::string ActorOf(const RpcContext& ctx)

@@ -34,7 +34,9 @@ sequence:
         - field: target_filename
           op: contains_any
           value: ['\documents\', '\desktop\', '\pictures\', '\downloads\', '\users\public\',
-                  '\appdata\local\temp\']
+                  '\appdata\local\temp\',
+                  # demo 攻擊鏈 B 的模擬資料夾（DEMO-SCRIPT B1；sysmon.xml 已對它開 include）
+                  'c:\demodata\']
 
     - id: delete_originals
       event: FILE_DELETE

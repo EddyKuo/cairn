@@ -13,6 +13,7 @@
 #include <deque>
 #include <functional>
 #include <future>
+#include <optional>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -55,10 +56,6 @@ std::string JoinFailures(const std::vector<TargetOutcome>& outcomes)
     }
     return s;
 }
-
-// 同步呼叫的結果傳遞
-template <class T>
-using Promise = std::shared_ptr<std::promise<Result<T>>>;
 
 } // namespace
 
@@ -531,19 +528,20 @@ struct ResponseExecutor::Impl {
     {
         if (!started.load() || stopping.load())
             return MakeReject(ErrorCode::ServiceUnavailable, "SERVICE_STOPPING", "response executor not running");
-        auto promise = std::make_shared<std::promise<Result<T>>>();
+        // MSVC STL 的 std::promise<T> 要求 T 可預設建構（microsoft/STL#321），Result<T> 不行 → 包一層 optional
+        auto promise = std::make_shared<std::promise<std::optional<Result<T>>>>();
         auto future  = promise->get_future();
         const bool posted = jobs->Post([this, promise, fn = std::move(fn)]() mutable {
             if (stopping.load()) {
-                promise->set_value(MakeReject(ErrorCode::ServiceUnavailable, "SERVICE_STOPPING", "shutting down"));
+                promise->set_value(Result<T>{MakeReject(ErrorCode::ServiceUnavailable, "SERVICE_STOPPING", "shutting down")});
                 return;
             }
-            promise->set_value(fn());
+            promise->set_value(Result<T>{fn()});
         });
         if (!posted) return MakeReject(ErrorCode::ServiceUnavailable, "SERVICE_STOPPING", "response queue full or closed");
         if (future.wait_for(cfg.syncCallTimeout) != std::future_status::ready)
             return MakeError(ErrorCode::Timeout, "response executor call timed out");
-        return future.get();
+        return std::move(*future.get());
     }
 };
 

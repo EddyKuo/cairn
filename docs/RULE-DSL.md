@@ -62,7 +62,7 @@ where:
 | `starts_with` / `ends_with`（及 `not_`） | 單一字串 | |
 | `in` / `not_in` | 清單 | 完全相等（字串或整數） |
 | `contains_any` / `ends_with_any` / `starts_with_any`（及 `not_`） | 清單 | 任一符合 |
-| `matches` / `not_matches` | 正則字串 | ECMAScript，**一律不分大小寫**（開頭的 `(?i)` 會被移除）。可加 `prefilter: [字面量...]` |
+| `matches` / `not_matches` | 正則字串 | ECMAScript，**一律不分大小寫**（開頭的 `(?i)` 會被移除）。可加 `prefilter: [字面量...]`：任何命中都必須含其中之一，否則直接跳過正則。未寫時會自動抽取群組與字元類別以外最長的必要字面量 |
 | `gt` / `lt` | 整數 | |
 | `has_any` | 整數或 `0x` 遮罩，可為清單（OR） | `(值 & 遮罩) != 0`，用於 `granted_access` |
 | `equals_ref` / `not_equals_ref` | `<步驟id>.<欄位>` | 只能引用**前序**步驟；步驟 0 與 booster 不可用 |
@@ -186,4 +186,6 @@ response:
 2. 高頻事件（EID 1/3/7/11）上的 `matches` 一定要搭配便宜的前置條件（同一 `where` 內的 `ends_with` / `contains`，或 `prefilter`）。AND 會依成本自動排序，但 `any_of` 內的正則每次都會跑。
 3. `not_*` 條件不會在缺值時成立——若要排除某程序，請同時確保欄位必定存在。
 4. 在 `tests/core/` 為新規則補一個正例與一個反例（`RuleLoaderTests` 會檢查整包規則都能載入）。
-5. 跑 `tools/Export-FpReport.ps1` 看 7 天 dry-run 的觸發排行；單一規則貢獻超過總告警 30% 者必須重寫，不得靠排除清單硬壓。
+5. 跑 `python3 tools/check-rules.py`（CI 也會跑）：除 schema 外，還檢查 RuleCompiler 語意、`requires_events` 是否涵蓋用到的事件型別、`config/sysmon.xml` 是否真的會記錄這些事件、ATT&CK ID 是否在白名單、`prefilter` 是否涵蓋正則的所有匹配路徑。
+   ⚠ 規則依賴的事件若在 `sysmon.xml` 是 `onmatch="include"`（EID 10/11/12/13/23），**Sysmon 只記錄符合 include 條件的事件**——檢查器會列出這些規則，請確認 include 條件涵蓋規則要看的值，否則規則在實機上永遠不會命中。
+6. 跑 `tools/Export-FpReport.ps1` 看 7 天 dry-run 的觸發排行；單一規則貢獻超過總告警 30% 者必須重寫，不得靠排除清單硬壓。

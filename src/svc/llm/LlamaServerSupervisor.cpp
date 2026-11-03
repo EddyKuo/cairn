@@ -327,7 +327,7 @@ bool LlamaServerSupervisor::ProcessExitedLocked() const noexcept
     return !m_process || ::WaitForSingleObject(m_process.get(), 0) == WAIT_OBJECT_0;
 }
 
-bool LlamaServerSupervisor::WaitForHealthyLocked()
+bool LlamaServerSupervisor::WaitForHealthyLocked(std::stop_token cancel)
 {
     auto http = WinHttpClient::Create(L"127.0.0.1", m_cfg.port);
     if (!http) return false;
@@ -340,9 +340,9 @@ bool LlamaServerSupervisor::WaitForHealthyLocked()
 
     const auto deadline = SteadyClock::now() + m_cfg.healthTimeout;
     while (SteadyClock::now() < deadline) {
-        if (m_shutdown.load(std::memory_order_acquire)) return false;
+        if (m_shutdown.load(std::memory_order_acquire) || cancel.stop_requested()) return false;
         if (ProcessExitedLocked()) return false;
-        auto r = http.Value()->Get(L"/health", auth, t);
+        auto r = http.Value()->Get(L"/health", auth, t, cancel);
         if (r && r.Value().statusCode == 200) return true;   // 載入中為 503
         ::Sleep(500);
     }
@@ -386,7 +386,7 @@ void LlamaServerSupervisor::OnCrashLocked(const char* why)
     spdlog::warn("[llm] llama-server 失敗（{}），{} 秒後重試（第 {} 次）", why, delay.count(), n);
 }
 
-Status LlamaServerSupervisor::EnsureRunning()
+Status LlamaServerSupervisor::EnsureRunning(std::stop_token cancel)
 {
     if (m_shutdown.load(std::memory_order_acquire)) return MakeError(ErrorCode::LlmUnavailable, "shutdown");
     std::lock_guard lk{m_mutex};
@@ -413,10 +413,15 @@ Status LlamaServerSupervisor::EnsureRunning()
         OnCrashLocked("spawn failed");
         return MakeError(ErrorCode::LlmUnavailable, StateReason());
     }
-    if (!WaitForHealthyLocked()) {
+    if (!WaitForHealthyLocked(cancel)) {
         if (m_shutdown.load()) {
             KillLocked();
             return MakeError(ErrorCode::LlmUnavailable, "shutdown");
+        }
+        if (cancel.stop_requested()) {   // 呼叫端停止（服務關機）：不算崩潰、不計入重啟次數
+            KillLocked();
+            SetState(SupervisorState::Stopped, "cancelled");
+            return MakeError(ErrorCode::Cancelled, "cold start cancelled");
         }
         OnCrashLocked("health-timeout");
         return MakeError(ErrorCode::LlmUnavailable, StateReason());

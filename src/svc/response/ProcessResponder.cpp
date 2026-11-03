@@ -187,7 +187,7 @@ std::vector<LiveProc> SnapshotProcesses()
     std::vector<LiveProc> out;
     wil::unique_handle snap{::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)};
     if (!snap || snap.get() == INVALID_HANDLE_VALUE) {
-        snap.release();
+        (void)snap.release();   // INVALID_HANDLE_VALUE 不可交給 CloseHandle；release() 為 WI_NODISCARD
         return out;
     }
     PROCESSENTRY32W pe{};

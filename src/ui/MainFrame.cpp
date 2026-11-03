@@ -239,11 +239,11 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
     if (CFrameWndEx::OnCreate(lpcs) == -1) return -1;
 
     m_bgBrush.CreateSolidBrush(RGB(0x0B, 0x0F, 0x14));
-    const int small = ::GetSystemMetrics(SM_CXSMICON);
-    m_icons[static_cast<int>(TrayState::Protecting)] = MakeShieldIcon(small, RGB(0x2F, 0x81, 0xF7), 0);
-    m_icons[static_cast<int>(TrayState::Learning)]   = MakeShieldIcon(small, RGB(0x2F, 0x81, 0xF7), 1);
-    m_icons[static_cast<int>(TrayState::Degraded)]   = MakeShieldIcon(small, RGB(0xD2, 0x99, 0x22), 2);
-    m_icons[static_cast<int>(TrayState::Gone)]       = MakeShieldIcon(small, RGB(0x8B, 0x94, 0x9E), 3);
+    const int smallIconPx = ::GetSystemMetrics(SM_CXSMICON);   // 勿命名為 small：rpcndr.h 有 #define small char
+    m_icons[static_cast<int>(TrayState::Protecting)] = MakeShieldIcon(smallIconPx, RGB(0x2F, 0x81, 0xF7), 0);
+    m_icons[static_cast<int>(TrayState::Learning)]   = MakeShieldIcon(smallIconPx, RGB(0x2F, 0x81, 0xF7), 1);
+    m_icons[static_cast<int>(TrayState::Degraded)]   = MakeShieldIcon(smallIconPx, RGB(0xD2, 0x99, 0x22), 2);
+    m_icons[static_cast<int>(TrayState::Gone)]       = MakeShieldIcon(smallIconPx, RGB(0x8B, 0x94, 0x9E), 3);
     SetIcon(m_icons[0], FALSE);
     SetIcon(MakeShieldIcon(::GetSystemMetrics(SM_CXICON), RGB(0x2F, 0x81, 0xF7), 0), TRUE);
 

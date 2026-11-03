@@ -27,7 +27,7 @@ where:
           - field: command_line
             op: matches
             value: '(?i)\s[-/](e|en|enc|enco|encod|encode|encoded|encodedc|encodedcommand|ec)\s+[a-z0-9+/=]{20,}'
-            prefilter: [' -e', ' /e']
+            prefilter: ['-e', '/e']   # 不含前導空白：\s 也可能是 tab
       - all_of:
           - field: image
             op: ends_with_any

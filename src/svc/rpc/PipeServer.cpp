@@ -62,6 +62,8 @@ void PipeServer::Stop() noexcept
         // 已在停止中；仍確保 join（解構路徑）
     }
     m_stopEvent.SetEvent();
+    // 在 m_qMutex 下「經過」一次再 notify：避免 worker 已檢查完述詞、尚未進入 wait 時錯過喚醒而永久阻塞（join 卡死）
+    { std::lock_guard lk{m_qMutex}; }
     m_qCv.notify_all();
     if (m_acceptThread.joinable()) m_acceptThread.join();
     for (auto& t : m_workers)
@@ -223,13 +225,20 @@ bool PipeServer::WriteAll(HANDLE pipe, const std::string& data)
 
 void PipeServer::Serve(wil::unique_handle pipe)
 {
-    const RpcContext ctx = QueryClientContext(pipe.get());
+    // ImpersonateNamedPipeClient 必須在自管線讀到資料之後才能成功（否則 ERROR_CANNOT_IMPERSONATE），
+    // 因此對端脈絡延後到第一次讀取成功後才查詢。
+    RpcContext ctx;
+    bool ctxReady = false;
     FrameDecoder dec;
     std::vector<uint8_t> buf(64 * 1024);
 
     while (!m_stopping.load()) {
         DWORD got = 0;
         if (!ReadSome(pipe.get(), buf, got)) break;
+        if (!ctxReady) {
+            ctx      = QueryClientContext(pipe.get());
+            ctxReady = true;
+        }
         dec.Feed(std::span<const uint8_t>(buf.data(), got));
 
         for (;;) {

@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <future>
+#include <optional>
 
 #include "base/IClock.h"
 #include "store/ReadOnlyDb.h"
@@ -207,11 +208,11 @@ TEST(WriterThread, UrgentAlertIsWrittenWithEvidenceAndHits)
     hit.ruleHash = "h";
     a.hits = {hit};
 
-    std::promise<Result<int64_t>> done;
+    std::promise<std::optional<Result<int64_t>>> done;   // MSVC：promise<T> 的 T 需可預設建構
     model::WriteOp op = Op(a);
-    op.onDone = [&](Result<int64_t> r) { done.set_value(std::move(r)); };
+    op.onDone = [&](Result<int64_t> r) { done.set_value(std::move(r)); };   // 隱式轉 optional
     ASSERT_TRUE(w->Post(std::move(op)));
-    auto res = done.get_future().get();
+    auto res = std::move(*done.get_future().get());
     ASSERT_TRUE(res) << res.GetError().ToString();
     EXPECT_EQ(res.Value(), 1);
 
@@ -263,11 +264,11 @@ TEST(WriterThread, ExclusionInsertReturnsIdAndIsIdempotent)
     x.value = "C:\\Tools\\build.exe";
     x.createdTs = f.clock.NowMs();
     auto post = [&] {
-        std::promise<Result<int64_t>> p;
+        std::promise<std::optional<Result<int64_t>>> p;
         auto op = Op(x);
         op.onDone = [&](Result<int64_t> r) { p.set_value(std::move(r)); };
         EXPECT_TRUE(w->Post(std::move(op)));
-        return p.get_future().get();
+        return std::move(*p.get_future().get());
     };
     auto a = post();
     auto b = post();

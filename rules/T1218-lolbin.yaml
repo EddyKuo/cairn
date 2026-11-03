@@ -53,7 +53,7 @@ status: enabled
 score: 85
 decay: 900s
 deterministic: false
-requires_events: [1, 12, 13]
+requires_events: [1, 12, 13, 4104]
 
 event: [PROCESS_CREATE, REGISTRY_SET, SCRIPT_BLOCK]
 where:

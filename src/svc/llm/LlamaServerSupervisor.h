@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <thread>
 
@@ -67,7 +68,9 @@ public:
 
     // T5：每次推論前呼叫。已 Running 則立即返回；需冷啟動時最長阻塞 healthTimeout。
     // 失敗回傳 ErrorCode::LlmUnavailable（context 說明原因：disabled / missing / backoff / restart-limit / health-timeout）。
-    [[nodiscard]] Status EnsureRunning();
+    // cancel 被觸發（LlmWorker::Stop）時中止冷啟動等待並回傳 ErrorCode::Cancelled——否則服務停止時
+    // T5 會卡在 /health 輪詢最長 healthTimeout（ServiceHost 先停 LlmWorker、後呼叫 Shutdown）。
+    [[nodiscard]] Status EnsureRunning(std::stop_token cancel = {});
 
     // T5：推論成功後呼叫，更新閒置計時基準。
     void NotifyActivity() noexcept;
@@ -96,7 +99,7 @@ private:
 
     bool   PreflightLocked();                    // 檔案存在性；失敗 → Unavailable
     Status SpawnLocked();                        // Job → 子程序 → 管線讀取執行緒
-    bool   WaitForHealthyLocked();               // 輪詢 /health
+    bool   WaitForHealthyLocked(std::stop_token cancel);   // 輪詢 /health
     void   KillLocked() noexcept;                // 關閉 Job、等待結束、回收讀取執行緒
     void   OnCrashLocked(const char* why);       // 記錄重啟並進入 Backoff / Unavailable
     bool   ProcessExitedLocked() const noexcept;

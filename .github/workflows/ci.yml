@@ -151,31 +151,12 @@ jobs:
           npm ci
           npm run check:uml
 
-      - name: 規則 YAML schema 驗證（rules/_schema.json）
+      - name: 規則靜態檢查（schema + RuleCompiler 語意 + sysmon.xml / ATT&CK / 排除清單交叉比對）
         shell: bash
-        # 規則檔為多文件 YAML（一檔多條規則，以 --- 分隔）；ajv-cli 只吃單一文件，故以 Python 逐文件驗證
+        # 規則檔為多文件 YAML（一檔多條規則，以 --- 分隔）；檢查項目見 tools/check-rules.py 檔頭
         run: |
           python3 -m pip install --quiet pyyaml jsonschema
-          python3 - <<'PY'
-          import glob, json, os, sys, yaml, jsonschema
-          schema = json.load(open("rules/_schema.json", encoding="utf-8"))
-          cls = jsonschema.validators.validator_for(schema)
-          cls.check_schema(schema)
-          v = cls(schema)
-          n = bad = 0
-          for f in sorted(glob.glob("rules/*.yaml")):
-              if os.path.basename(f).startswith(("exclusions", "_")):
-                  continue
-              for doc in yaml.safe_load_all(open(f, encoding="utf-8")):
-                  if doc is None:
-                      continue
-                  n += 1
-                  for e in v.iter_errors(doc):
-                      bad += 1
-                      print(f"{f} [{doc.get('id', '?')}] {'/'.join(map(str, e.path))}: {e.message}")
-          print(f"validated {n} rules, {bad} errors")
-          sys.exit(1 if bad or n == 0 else 0)
-          PY
+          python3 tools/check-rules.py
 
       # 程式碼格式：首次導入時程式碼尚未全面 clang-format，先以非阻擋方式回報（part4 §4.5.1 要求最終改為阻擋）
       - name: clang-format 檢查

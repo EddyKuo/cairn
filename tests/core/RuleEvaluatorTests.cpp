@@ -78,6 +78,19 @@ TEST_F(RuleEvaluatorTest, MatchesRegexIcaseWithPrefilter)
     EXPECT_FALSE(HasRule(Feed(f.ProcessCreate(2, 0, "v.exe", "", "vssadmin list shadows")), "R-T9100-001"));
 }
 
+TEST_F(RuleEvaluatorTest, AutoPrefilterIgnoresCharClassAndOptionalGroup)
+{
+    // 未寫 prefilter 時由 AutoPrefilter 推導。字元類別 [a-z0-9] 與可省略群組 (abc)? 內的字元
+    // 不是「必要字面量」，若被當成 prefilter 會讓正則永遠不命中。
+    Load(Tier1("PROCESS_CREATE",
+               "  - field: command_line\n    op: matches\n"
+               "    value: '(?i)(downloadstring)?\\s+-u\\s+[a-z0-9_-]{8,}'\n"));
+    // 舊實作會抽出 "downloadstring"（群組內，可省略）當 prefilter → 第一筆誤判為未命中
+    EXPECT_TRUE(HasRule(Feed(f.ProcessCreate(1, 0, "c.exe", "", "x -u abcdef1234")), "R-T9100-001"));
+    EXPECT_TRUE(HasRule(Feed(f.ProcessCreate(2, 0, "c.exe", "", "DOWNLOADSTRING -U ABCDEF1234")), "R-T9100-001"));
+    EXPECT_FALSE(HasRule(Feed(f.ProcessCreate(3, 0, "c.exe", "", "x -u ab")), "R-T9100-001"));
+}
+
 TEST_F(RuleEvaluatorTest, AnyOfGroup)
 {
     Load(Tier1("[PROCESS_CREATE, SCRIPT_BLOCK]",

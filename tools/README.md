@@ -22,6 +22,7 @@ PowerShell 腳本相容 Windows PowerShell 5.1 與 PowerShell 7，檔案以 UTF-
 | `Pack-Demo.ps1` | `dist\cairn-m0.zip` + `dist\cairn-m0-model.zip`；`-DemoAssets` 建 `C:\DemoData` | W4-8 | — |
 | `Test-Narrative.ps1` | LLM 敘事 schema 合規率與延遲 | W3、M-04/M-05 | — |
 | `Test-PromptInjection.ps1` | Prompt injection 語料測試 | W3、M-06 | — |
+| `check-rules.py` | 規則與排除清單靜態檢查（schema、RuleCompiler 語意、sysmon.xml / ATT&CK 交叉比對）；`--strict` 警告也算失敗 | CI `docs-and-rules` | — |
 | `check-mermaid.mjs` | 驗證文件內的 Mermaid UML | CONVENTIONS C-10 | — |
 
 報表一律輸出到 `reports\`（不進版控）。DB 查詢一律以 `sqlite3 -readonly` 開啟 `%ProgramData%\Cairn\cairn.db`，需 sqlite3 ≥ 3.33（`-json`）。

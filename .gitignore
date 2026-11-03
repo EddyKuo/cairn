@@ -21,3 +21,4 @@ ui-web/dist/
 *.aps
 *.user
 compile_flags.txt
+__pycache__/

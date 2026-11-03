@@ -121,11 +121,14 @@ std::vector<std::string> StringList(const YAML::Node& v, const char* key)
     return out;
 }
 
-// 正則的廉價前置過濾：pattern 無頂層交替（不含 '|'）時，抽出最長的純字面量（>= 3 字元）。
+// 正則的廉價前置過濾：pattern 無交替（不含 '|'）時，抽出最長的「必要」純字面量（>= 3 字元）。
+// 必要 = 任何命中都一定含有它。因此只收群組外（depth 0）、字元類別外的字面量：
+//   [a-z0-9] 裡的字元不是字面量；(abc)? 整個群組可省略，群組內一律不收。
 std::vector<std::string> AutoPrefilter(const std::string& pattern)
 {
     if (pattern.find('|') != std::string::npos) return {};
     std::string best, cur;
+    int depth = 0;
     auto flush = [&] {
         if (cur.size() > best.size()) best = cur;
         cur.clear();
@@ -137,6 +140,18 @@ std::vector<std::string> AutoPrefilter(const std::string& pattern)
             ++i;
             continue;
         }
+        if (c == '[') {    // 跳過整個字元類別（含 []] 與 [^]] 及類別內跳脫）
+            flush();
+            size_t j = i + 1;
+            if (j < pattern.size() && pattern[j] == '^') ++j;
+            if (j < pattern.size() && pattern[j] == ']') ++j;
+            while (j < pattern.size() && pattern[j] != ']') j += (pattern[j] == '\\') ? 2 : 1;
+            i = j;
+            continue;
+        }
+        if (c == '(') { flush(); ++depth; continue; }
+        if (c == ')') { flush(); if (depth > 0) --depth; continue; }
+        if (depth > 0) continue;
         const bool lit = std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-';
         if (lit) {
             const char next = i + 1 < pattern.size() ? pattern[i + 1] : '\0';

@@ -98,6 +98,28 @@
           <TargetImage condition="end with">\lsass.exe</TargetImage>
           <GrantedAccess condition="is">0x0A28</GrantedAccess>
         </Rule>
+        <!-- 0x1010 = mimikatz sekurlsa；0x1FFFFF = procdump / comsvcs MiniDump（R-T1003-001 以 has_any 0x0010 判斷，
+             Sysmon 不支援位元遮罩比對，只能列舉常見值；漏列的值 Sysmon 不會記錄，規則也就看不到） -->
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1010</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1FFFFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1F3FFF</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x1438</GrantedAccess>
+        </Rule>
+        <Rule groupRelation="and">
+          <TargetImage condition="end with">\lsass.exe</TargetImage>
+          <GrantedAccess condition="is">0x147A</GrantedAccess>
+        </Rule>
         <!-- 竄改我方：任何程序以可終止 / 可寫入的權限開啟 CairnAgent（part4 §4.2） -->
         <Rule groupRelation="and">
           <TargetImage condition="end with">\CairnAgent.exe</TargetImage>
@@ -146,6 +168,7 @@
       <RegistryEvent onmatch="include">
         <TargetObject condition="contains">\CurrentVersion\Run</TargetObject>
         <TargetObject condition="contains">\CurrentVersion\RunOnce</TargetObject>
+        <TargetObject condition="contains">\Policies\Explorer\Run</TargetObject>
         <TargetObject condition="contains">\Image File Execution Options\</TargetObject>
         <TargetObject condition="contains">\CurrentControlSet\Services\</TargetObject>
         <TargetObject condition="contains">\Windows Defender\</TargetObject>
@@ -211,6 +234,14 @@
         <TargetFilename condition="end with">.xlsx</TargetFilename>
         <TargetFilename condition="end with">.pdf</TargetFilename>
         <TargetFilename condition="end with">.jpg</TargetFilename>
+        <!-- R-T1486-001 刪原檔步驟看的其餘副檔名：只放在 26（不封存），避免封存目錄被大量文件刪除塞滿 -->
+        <TargetFilename condition="end with">.pptx</TargetFilename>
+        <TargetFilename condition="end with">.png</TargetFilename>
+        <TargetFilename condition="end with">.txt</TargetFilename>
+        <TargetFilename condition="end with">.csv</TargetFilename>
+        <TargetFilename condition="end with">.zip</TargetFilename>
+        <TargetFilename condition="end with">.doc</TargetFilename>
+        <TargetFilename condition="end with">.xls</TargetFilename>
         <TargetFilename condition="begin with">C:\DemoData\</TargetFilename>
       </FileDeleteDetected>
     </RuleGroup>

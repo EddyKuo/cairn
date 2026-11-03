@@ -488,7 +488,15 @@ void WriterThread::ReplaySpill()
         WriteOp op;
         if (const auto* a = std::get_if<model::AlertRow>(&rec)) op.payload = *a;
         else op.payload = std::get<model::AuditRow>(rec);
-        return static_cast<bool>(ApplyUrgentOnce(op));
+        auto res = ApplyUrgentOnce(op);
+        if (res) return true;
+        // 非 DB 失效的錯誤（約束等）重試也不會成功：略過該筆，避免整個 spill 永久卡住
+        if (!IsFatalForBatch(res.GetError().code)) {
+            std::lock_guard lk{m_statsMutex};
+            ++m_stats.writeErrors;
+            return true;
+        }
+        return false;
     });
     (void)r;
 }

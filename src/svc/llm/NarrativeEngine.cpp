@@ -21,7 +21,7 @@ Result<model::NarrativeResult> LlamaHttpEngine::Generate(const model::PromptInpu
                                                          std::stop_token cancel)
 {
     // 冷啟動（最長 60 s）不佔用 30 s 的生成預算（SDD-03 §7.2.5）
-    if (auto st = m_sup->EnsureRunning(); !st) return st.GetError();
+    if (auto st = m_sup->EnsureRunning(cancel); !st) return st.GetError();
     if (cancel.stop_requested()) return MakeError(ErrorCode::Cancelled, "cancelled after EnsureRunning");
 
     PromptOptions popt;

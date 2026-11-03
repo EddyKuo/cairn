@@ -200,18 +200,27 @@ Result<size_t> SpillFile::Replay(const std::function<bool(const SpillRecord&)>& 
         if (!in) continue;
         bool        allOk = true;
         std::string line;
+        std::string remaining;   // 失敗那一行（含）之後尚未補入的內容
         while (std::getline(in, line)) {
             if (line.empty()) continue;
             auto rec = DeserializeSpill(line);
             if (!rec) continue;   // 壞行：略過（不能因一行損毀而永遠卡住整個檔案）
             if (!apply(rec.Value())) {
                 allOk = false;
+                remaining.append(line).push_back('\n');
+                while (std::getline(in, line))
+                    if (!line.empty()) remaining.append(line).push_back('\n');
                 break;
             }
             ++applied;
         }
         in.close();
-        if (!allOk) break;   // 保留此檔與之後的檔，下次再補（順序不可亂：稽核鏈依序）
+        if (!allOk) {
+            // 已補入的前段必須從檔案移除，否則下次重試會重複寫入（audit_log 會出現重複列）
+            std::ofstream out(f, std::ios::binary | std::ios::trunc);
+            out.write(remaining.data(), static_cast<std::streamsize>(remaining.size()));
+            break;   // 保留此檔與之後的檔，下次再補（順序不可亂：稽核鏈依序）
+        }
         std::filesystem::remove(f, ec);
         if (f == m_current) m_current.clear();
     }

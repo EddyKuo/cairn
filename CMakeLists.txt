@@ -42,6 +42,10 @@ if(MSVC)
     target_link_options(cairn_compile_options INTERFACE
         $<$<NOT:$<BOOL:${CAIRN_ENABLE_ASAN}>>:/guard:cf>)
     if(CAIRN_ENABLE_ASAN)
+        # /RTC1（CMake Debug 預設）與 /fsanitize=address 不相容（C7616）
+        foreach(_cfg CMAKE_CXX_FLAGS_DEBUG CMAKE_C_FLAGS_DEBUG)
+            string(REGEX REPLACE "/RTC[1csu]+" "" ${_cfg} "${${_cfg}}")
+        endforeach()
         target_compile_options(cairn_compile_options INTERFACE /fsanitize=address /Zi)
         target_compile_definitions(cairn_compile_options INTERFACE
             _DISABLE_VECTOR_ANNOTATION _DISABLE_STRING_ANNOTATION)
