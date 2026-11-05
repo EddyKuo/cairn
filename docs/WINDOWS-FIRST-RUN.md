@@ -10,9 +10,30 @@
 |---|---|
 | §2 configure / build | ✅ x64-debug、x64-asan 零錯誤。修正 2 處 MSVC 編譯錯誤（`src/ui/pch.h` 的 `_WINSOCKAPI_`、`AuditChainTests.cpp` 巨集內 raw string）與 1 處 C4244 |
 | §3 core 測試 | ✅ x64-debug、x64-asan 各 161/161；`RingBuffer*` `--gtest_repeat=50` 全綠 |
-| §4 svc 測試 | 🟡 x64-debug、x64-asan 各 132/132，**但在非管理員 shell 執行**；管理員 shell 尚未跑 |
+| §4 svc 測試 | ✅ 管理員 shell（`tools\Invoke-AdminVerify.ps1`）：x64-debug、x64-asan 各 136/136，無 skip |
 | §4.1 真實樣本 | 🟡 已以實機錄製（閒置工作站 1,341 筆 + 攻擊模擬 247 筆，`EvtRender` 原樣單引號）重放過解析器與 `AnalysisEngine`，見下；去識別化樣本已加入 `tests/fixtures/sysmon-recorded/`（`RecordedSysmonTests`，15 個 EID） |
-| §5 以後 | ⬜ 未開始（需管理員） |
+| §1 前置檢查 | 🟡 補齊環境後 OK=15 WARN=1 FAIL=1：僅剩 llama-server + 模型未安裝（W3 才需要） |
+| §5 服務安裝與冒煙 | ✅ `Install-Dev.ps1` 安裝成功；`health.get` 回合法 JSON-RPC（W2 出場條件 3），sysmon / powershell provider 皆 healthy，LLM `unavailable`（未裝 llama-server，符合預期） |
+| §5.1 整合層首次啟動 | ✅ 全 8 項：單一實例鎖（第二個 `--console` 以 1056 結束）、RPC 27 條、規則 19 / 失敗 0、首次寫入 20 條內建排除且第二次啟動不再寫入、既存程序快照 279、10 秒後 `agent_health` 有列、停止 268 ms 且 `cairn.db-wal` 清為 0、無 `llama-server` 殘留、`protection.pause` 先回 403 + token、帶 token 後 `paused`，`resume` 後回 `learning` |
+| W1 出場條件 1–5 | ✅ ① `Check-Prereqs` 僅剩 llama-server（W3 項）② debug / asan 全綠 ③ 事件落地含 PROCESS_CREATE / NETWORK_CONNECT / REGISTRY_SET / DNS_QUERY ④ 服務停止期間的 100 個 `cmd.exe` 重啟後 **100/100** 補收（bookmark 續讀）⑤ `events_dropped=0`、`queue_depth=22`（容量 65,536） |
+| W1 自我遙測（R-06） | ✅ `taskkill /F` 後 15 秒內 SCM 自動重啟（PID 20860 → 16256） |
+| W1 出場條件 6（壓測） | ⬜ 未跑：2,000 事件/秒 × 10 分鐘會占滿開發機 |
+| W2 出場條件 1–3 | ✅ ① core 全綠 ② 依本節指令觸發 Word + `powershell -c iwr …/payload.txt`：告警 id 1，**score 100**（≥ 65），R-T1059-001 + R-T1105-001，觸發後 7 秒內可由 `alerts.list` 查得 ③ RPC 通道（同 §5） |
+| W2 出場條件 4（UI） | 🟡 程序層面 ✅：主視窗 89 ms 出現、WebView2 子程序 6 個；經系統匣「結束 UI」→ 確認後 exit 0，**msedgewebview2 全數退出**（✕ 依 P9 只縮至系統匣，不是結束）。「3 秒內顯示佇列」「調整大小填滿」需目視，未驗 |
+| W2 出場條件 5（4 小時誤報初篩） | ⬜ 需一般辦公 4 小時 |
+| W3 出場條件 2（AppVerifier） | ✅ `Run-AppVerifier.ps1`（Heaps / Handles / Locks / Memory / Exceptions）：`-Scenario Response` **0 筆記錄**、25/25 通過；`-Scenario Tests` core 162/162、svc 136/136，**0 筆記錄**。修正腳本缺陷：`Invoke-TestExe` 未導向測試輸出，回傳值成為陣列而恆判為失敗 |
+| W3 出場條件 5 | ✅ 無 llama-server 下告警照常產生，`ai_state='unavailable'`；學習模式下自動回應暫緩（`actions_taken=[]`） |
+| W3 出場條件 6 | ✅ 服務停止後無 `llama-server` 殘留（§5.1） |
+| W1-6、W2-5、W3-1/3/4、W4 | ⬜ 壓測（占滿開發機）、4 小時 / 7 天觀察、llama-server + 模型、快照 VM |
+
+**⚠ 發現：PowerShell 7（`pwsh.exe`）的 4104 不在偵測範圍**
+
+`EvtChannelSource::PowerShellConfig` 只訂閱 Windows PowerShell 5.1 的 `Microsoft-Windows-PowerShell/Operational`。
+PowerShell 7 的腳本區塊記錄寫入另一個通道 `PowerShellCore/Operational`，且由另一個政策鍵
+`HKLM\SOFTWARE\Policies\Microsoft\PowerShellCore\ScriptBlockLogging` 啟用（`Check-Prereqs.ps1` 只檢查 5.1 的鍵）。
+實測：同一行指令經 `powershell.exe` 執行可在 `events` 查到 4104，經 `pwsh.exe` 執行則查不到。
+影響：R-T1059-001 的 `script_block` 分支（偵測命令列上看不到的內容）對 pwsh 失效；命令列分支仍涵蓋 `\pwsh.exe`。
+修正須新增事件來源，屬規格變更（part2 §2.2、SDD-01 感測源），待決。
 
 建置環境備註：`vcpkg.json` 的 `builtin-baseline` 為 2026-07-29，本機 vcpkg checkout 須不早於此（`git -C $env:VCPKG_ROOT pull`）；
 winget 安裝的 ninja 不在 vcvars 的 PATH 內，`tools\build.ps1` 會自動補上。
@@ -396,7 +417,8 @@ cmake --preset x64-release; cmake --build --preset x64-release
 | `agent_health.events_ingested / events_dropped` 是**累計值**（**已確認**：`ServiceHost::SampleHealth` 寫入自服務啟動以來的累計；重啟後歸零） | `Load-Test.ps1` | 腳本的自動判斷應印出「累計」 |
 | RPC 參數名（**已對齊整合層**）：告警 ID 用 `alert_id`（亦接受 `id`），一律可用字串；`response.revert` 第一次不帶 token 會回 `CONFIRMATION_REQUIRED`，token 在 `error.data.details.confirmation_token` | `Run-AppVerifier.ps1 -AlertId`、`Invoke-Rpc.ps1` 範例 | `.\tools\Invoke-Rpc.ps1 -Method response.prepare -Params @{ alert_id='1'; action='suspend_process' } -Raw`；實作見 `src/svc/host/handlers/` |
 | `rules.list` 回傳 `{ items: [{ rule_id, status, ... }] }` | `Run-AtomicSuite.ps1` | 同上；失敗時腳本會退回以 `rule_hits.dryrun` 判斷 |
-| Sysmon 的 `SysmonDrv\Parameters\ConfigHash` 是對 XML 原檔計算的 SHA256 | `Check-Prereqs.ps1` | 套用 `config\sysmon.xml` 後比對 `Get-FileHash`；不一致就改成比對 `Sysmon64.exe -c` 的輸出 |
+| Sysmon 的 `SysmonDrv\Parameters\ConfigHash` 是對 XML 原檔計算的 SHA256（**已確認**，Sysmon 15.21：已套用的雜湊與當時套用的 XML 檔 `Get-FileHash` 逐字相同） | `Check-Prereqs.ps1` | — |
+| Windows SDK 標頭檢查（**已修正**：原本查不存在的 `um\wevtapi.h`，`EvtSubscribe` 的標頭實為 `um\winevt.h`） | `Check-Prereqs.ps1` | — |
 | `appverif.exe -export log -for <image> -with To=<file>` 的語法與 XML 中的 `logEntry` 節點名 | `Run-AppVerifier.ps1` | 先手動對一個測試執行檔跑一次並開啟匯出的 XML |
 | ART 測試以 WMI 啟動後，Cairn 會把它視為獨立的程序樹 | `Run-AtomicSuite.ps1` | 跑一項後查 `rule_hits.root_process_guid` 是否與其他測試不同；若仍累加到同一棵樹，改用 `-RestartAgentBetweenTests` |
 | `%ProgramData%\Cairn\policy.json` 是服務讀取的政策檔名；規則目錄為 `%ProgramData%\Cairn\rules\`（**已確認**：`ServiceHost::LoadConfig`；規則目錄不存在時退回 EXE 旁的 `rules\`） | `Install-Dev.ps1` | 缺失或損毀時服務寫回內建預設並在 health.get 的 `degraded_reasons` 標 `policy_default` |

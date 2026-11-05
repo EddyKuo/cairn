@@ -97,7 +97,8 @@ function Invoke-TestExe([string]$Exe, [string]$Filter) {
     $testArgs = @("--gtest_output=xml:$(Join-Path $OutputDir ((Split-Path $Exe -Leaf) + '.gtest.xml'))")
     if ($Filter) { $testArgs += "--gtest_filter=$Filter" }
     Write-Host "執行 $Exe $($testArgs -join ' ')"
-    & $Exe @testArgs
+    # 輸出導向 Out-Host：否則 gtest 的每一行都成為函式回傳值，`(陣列) -ne 0` 恆為真，全綠也被計為失敗
+    & $Exe @testArgs | Out-Host
     return $LASTEXITCODE
 }
 

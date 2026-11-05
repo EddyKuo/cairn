@@ -42,7 +42,11 @@ try {
         Write-Host "===== $Title：OK" -ForegroundColor Green
     }
 
-    Step '1. 前置檢查' { & "$PSScriptRoot\Check-Prereqs.ps1" }
+    # 前置檢查的 FAIL 只記錄不中止：缺 llama-server、ScriptBlockLogging 等不影響 svc 測試與錄製
+    Write-Host "`n===== 1. 前置檢查 =====" -ForegroundColor Cyan
+    & "$PSScriptRoot\Check-Prereqs.ps1"
+    if ($LASTEXITCODE) { Write-Host '===== 1. 前置檢查：有 FAIL 項（見上），繼續後續步驟' -ForegroundColor Yellow }
+    else { Write-Host '===== 1. 前置檢查：OK' -ForegroundColor Green }
 
     foreach ($preset in 'x64-debug', 'x64-asan') {
         if (-not (Test-Path "build\$preset\CMakeCache.txt")) { Write-Host "略過 $preset（尚未建置）"; continue }

@@ -120,7 +120,8 @@ if ($Role -eq 'Dev') {
             Where-Object { $_.Name -match '^10\.0\.\d+\.\d+$' } | ForEach-Object { [version]$_.Name } | Sort-Object -Descending)
         if ($vers.Count -gt 0 -and $vers[0] -ge [version]'10.0.22621.0') {
             $sdk = $vers[0].ToString()
-            $need = @('um\wevtapi.h', 'um\netfw.h', 'shared\bcrypt.h')
+            # EvtSubscribe 的標頭是 winevt.h（wevtapi 只是匯入程式庫名，SDK 中沒有 wevtapi.h）
+            $need = @('um\winevt.h', 'um\netfw.h', 'shared\bcrypt.h')
             $missing = @($need | Where-Object {
                     -not (Test-Path (Join-Path $inc "$sdk\$_")) -and -not (Test-Path (Join-Path $inc "$sdk\$($_ -replace '^shared','um')"))
                 })
@@ -221,8 +222,7 @@ Invoke-Check 'Sysmon 組態與 config\sysmon.xml 一致' {
     }
     $fileHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SysmonConfig).Hash
     # Sysmon 將目前套用組態的雜湊記在驅動參數的 ConfigHash（格式 "SHA256=XXXX"）。
-    # ⚠ 未在 Windows 上驗證：若 Sysmon 的 ConfigHash 不是對 XML 原檔計算，此項會恆為 WARN，
-    #   屆時請改以 `Sysmon64.exe -c` 的輸出比對（見 docs\WINDOWS-FIRST-RUN.md）。
+    # 已在 Windows 驗證（Sysmon 15.21，2026-11-05）：ConfigHash 即 XML 原檔的 SHA256。
     $param = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters' -ErrorAction SilentlyContinue
     $applied = $null
     if ($param -and ($param.PSObject.Properties.Name -contains 'ConfigHash')) { $applied = [string]$param.ConfigHash }
