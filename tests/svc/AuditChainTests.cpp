@@ -62,9 +62,11 @@ TEST(AuditChain, CanonicalJsonIsStable)
     f.params = "{}";
     f.result = "ok";
     f.prevHash = std::string(kGenesisHash);
-    EXPECT_EQ(CanonicalAuditJson(f),
-              R"({"ts":1,"actor":"system","action":"x","event_kind":"k","alert_id":null,"target":null,"params":"{}","result":"ok","error":null,"prev_hash":")" +
-                  std::string(kGenesisHash) + "\"}");
+    // 期望值先放進區域變數：MSVC 傳統前處理器無法正確切分巨集引數中的 raw string（C2017）
+    const std::string expected =
+        R"({"ts":1,"actor":"system","action":"x","event_kind":"k","alert_id":null,"target":null,"params":"{}","result":"ok","error":null,"prev_hash":")" +
+        std::string(kGenesisHash) + "\"}";
+    EXPECT_EQ(CanonicalAuditJson(f), expected);
     EXPECT_EQ(ComputeAuditRowHash(f), ComputeAuditRowHash(f));
 }
 
