@@ -1,8 +1,11 @@
 // ExclusionsTests —— 範圍排除、全域排除、glob、到期、規則自帶 exceptions（SDD-02 §5.5、§6.8 T-08）
 #include <gtest/gtest.h>
 
+#include <string>
+
 #include "rules/Exclusions.h"
 #include "rules/Rule.h"
+#include "rules/RuleLoader.h"
 
 using namespace cairn;
 using namespace cairn::rules;
@@ -88,4 +91,19 @@ TEST(ExclusionsTests, EmptySubjectFieldsNeverMatch)
     ExclusionSet s;
     s.Reload({E(1, K::PathGlob, "*")});
     EXPECT_FALSE(s.IsSuppressed("R", {}, ExclusionSubject{}, 0)) << "缺值不構成命中";
+}
+
+// 內建排除範本：遠端存取工具只排除官方安裝目錄，同名的可攜版 / 偽冒檔不得被放行
+TEST(ExclusionsTests, DefaultAnyDeskExclusionIsLimitedToInstallDir)
+{
+    auto r = LoadExclusionsYaml(std::string(CAIRN_RULES_DIR) + "/exclusions.default.yaml");
+    ASSERT_TRUE(r) << r.GetError().ToString();
+    ExclusionSet s;
+    s.Reload(r.Value());
+
+    const auto subject = [](std::string_view image) { return ExclusionSubject{image, "", "", ""}; };
+    EXPECT_TRUE(s.IsSuppressed("R-T1219-001", {}, subject("C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe"), 0));
+    EXPECT_TRUE(s.IsSuppressed("R-T1219-001", {}, subject("C:\\Program Files\\AnyDesk\\AnyDesk.exe"), 0));
+    EXPECT_FALSE(s.IsSuppressed("R-T1219-001", {}, subject("C:\\Users\\victim\\Downloads\\AnyDesk.exe"), 0));
+    EXPECT_FALSE(s.IsSuppressed("R-T1219-001", {}, subject("C:\\Windows\\Temp\\AnyDesk.exe"), 0));
 }
