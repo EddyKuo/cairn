@@ -15,8 +15,10 @@
 | §1 前置檢查 | 🟡 補齊環境後 OK=15 WARN=1 FAIL=1：僅剩 llama-server + 模型未安裝（W3 才需要） |
 | §5 服務安裝與冒煙 | ✅ `Install-Dev.ps1` 安裝成功；`health.get` 回合法 JSON-RPC（W2 出場條件 3），sysmon / powershell provider 皆 healthy，LLM `unavailable`（未裝 llama-server，符合預期） |
 | §5.1 整合層首次啟動 | ✅ 全 8 項：單一實例鎖（第二個 `--console` 以 1056 結束）、RPC 27 條、規則 19 / 失敗 0、首次寫入 20 條內建排除且第二次啟動不再寫入、既存程序快照 279、10 秒後 `agent_health` 有列、停止 268 ms 且 `cairn.db-wal` 清為 0、無 `llama-server` 殘留、`protection.pause` 先回 403 + token、帶 token 後 `paused`，`resume` 後回 `learning` |
-| W1 出場條件 3、4（部分） | 🟡 事件落地含 PROCESS_CREATE / NETWORK_CONNECT / REGISTRY_SET / DNS_QUERY；重啟後 sysmon 以 bookmark 續讀，powershell 於首筆 4104 後建立 bookmark。10 分鐘正式量測與健康度比例尚未做 |
-| W1–W4 其餘 | ⬜ 需長時間運作、llama-server、或快照 VM |
+| W1 出場條件 1–5 | ✅ ① `Check-Prereqs` 僅剩 llama-server（W3 項）② debug / asan 全綠 ③ 事件落地含 PROCESS_CREATE / NETWORK_CONNECT / REGISTRY_SET / DNS_QUERY ④ 服務停止期間的 100 個 `cmd.exe` 重啟後 **100/100** 補收（bookmark 續讀）⑤ `events_dropped=0`、`queue_depth=22`（容量 65,536） |
+| W1 自我遙測（R-06） | ✅ `taskkill /F` 後 15 秒內 SCM 自動重啟（PID 20860 → 16256） |
+| W1 出場條件 6（壓測） | ⬜ 未跑：2,000 事件/秒 × 10 分鐘會占滿開發機 |
+| W2–W4 | ⬜ 需長時間運作、llama-server、或快照 VM |
 
 **⚠ 發現：PowerShell 7（`pwsh.exe`）的 4104 不在偵測範圍**
 
