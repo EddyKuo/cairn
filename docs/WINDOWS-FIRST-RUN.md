@@ -18,7 +18,12 @@
 | W1 出場條件 1–5 | ✅ ① `Check-Prereqs` 僅剩 llama-server（W3 項）② debug / asan 全綠 ③ 事件落地含 PROCESS_CREATE / NETWORK_CONNECT / REGISTRY_SET / DNS_QUERY ④ 服務停止期間的 100 個 `cmd.exe` 重啟後 **100/100** 補收（bookmark 續讀）⑤ `events_dropped=0`、`queue_depth=22`（容量 65,536） |
 | W1 自我遙測（R-06） | ✅ `taskkill /F` 後 15 秒內 SCM 自動重啟（PID 20860 → 16256） |
 | W1 出場條件 6（壓測） | ⬜ 未跑：2,000 事件/秒 × 10 分鐘會占滿開發機 |
-| W2–W4 | ⬜ 需長時間運作、llama-server、或快照 VM |
+| W2 出場條件 1–3 | ✅ ① core 全綠 ② 依本節指令觸發 Word + `powershell -c iwr …/payload.txt`：告警 id 1，**score 100**（≥ 65），R-T1059-001 + R-T1105-001，觸發後 7 秒內可由 `alerts.list` 查得 ③ RPC 通道（同 §5） |
+| W2 出場條件 4（UI） | 🟡 程序層面 ✅：主視窗 89 ms 出現、WebView2 子程序 6 個；經系統匣「結束 UI」→ 確認後 exit 0，**msedgewebview2 全數退出**（✕ 依 P9 只縮至系統匣，不是結束）。「3 秒內顯示佇列」「調整大小填滿」需目視，未驗 |
+| W2 出場條件 5（4 小時誤報初篩） | ⬜ 需一般辦公 4 小時 |
+| W3 出場條件 5 | ✅ 無 llama-server 下告警照常產生，`ai_state='unavailable'`；學習模式下自動回應暫緩（`actions_taken=[]`） |
+| W3 出場條件 6 | ✅ 服務停止後無 `llama-server` 殘留（§5.1） |
+| W1-6、W2-5、W3-1–4、W4 | ⬜ 壓測（占滿開發機）、4 小時 / 7 天觀察、llama-server + 模型、AppVerifier、快照 VM |
 
 **⚠ 發現：PowerShell 7（`pwsh.exe`）的 4104 不在偵測範圍**
 
