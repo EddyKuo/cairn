@@ -10,10 +10,8 @@
 #define VC_EXTRALEAN
 #endif
 
-// 阻止 windows.h 引入舊版 winsock.h，稍後改引入 winsock2.h（DevHttp.cpp 的 --dev-http 需要）
-#ifndef _WINSOCKAPI_
-#define _WINSOCKAPI_
-#endif
+// winsock：VC_EXTRALEAN 使 MFC 引入的 windows.h 不帶舊版 winsock.h，afxwin.h 會自行引入 WinSock2.h。
+// 切勿手動定義 _WINSOCKAPI_——afxwin.h 視之為已引入 winsock v1，觸發 C1189「MFC requires use of Winsock2.h」。
 
 #include <algorithm>
 namespace Gdiplus {

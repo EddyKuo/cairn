@@ -1,6 +1,30 @@
 # Cairn M0 — Windows 首次驗證清單（WINDOWS-FIRST-RUN）
 
-> 版本：v0.1 · 2026-11-02
+> 版本：v0.2 · 2026-11-05
+
+## 進度紀錄
+
+### 2026-11-05 — 第一次 Windows 建置（Windows 11、VS 2022 BuildTools MSVC 14.44、非管理員 shell）
+
+| 節 | 結果 |
+|---|---|
+| §2 configure / build | ✅ x64-debug、x64-asan 零錯誤。修正 2 處 MSVC 編譯錯誤（`src/ui/pch.h` 的 `_WINSOCKAPI_`、`AuditChainTests.cpp` 巨集內 raw string）與 1 處 C4244 |
+| §3 core 測試 | ✅ x64-debug、x64-asan 各 161/161；`RingBuffer*` `--gtest_repeat=50` 全綠 |
+| §4 svc 測試 | 🟡 x64-debug、x64-asan 各 132/132，**但在非管理員 shell 執行**；管理員 shell 尚未跑 |
+| §4.1 真實樣本 | 🟡 已以實機錄製（閒置工作站 1,341 筆 + 攻擊模擬 247 筆，`EvtRender` 原樣單引號）重放過解析器與 `AnalysisEngine`，見下；**尚未把去識別化樣本放入 fixture** |
+| §5 以後 | ⬜ 未開始（需管理員） |
+
+建置環境備註：`vcpkg.json` 的 `builtin-baseline` 為 2026-07-29，本機 vcpkg checkout 須不早於此（`git -C $env:VCPKG_ROOT pull`）；
+winget 安裝的 ninja 不在 vcvars 的 PATH 內，`tools\build.ps1` 會自動補上。
+
+**實機錄製重放（一次性，錄製檔含使用者資訊故不進版控）**
+
+| 錄製 | 事件 | 解析 | 程序樹節點 | 規則命中 | 告警 | 自動回應 |
+|---|---|---|---|---|---|---|
+| 閒置工作站（Sysmon 15.21 + `config/sysmon.xml`） | 1,341 | 1,339（2 筆為不支援的 EID 4/16） | 207 | 36（含 dry-run 24） | **0** | 0 |
+| 攻擊模擬 | 247 | 247 | 21 | 19（含 dry-run 2） | 1（score 100，R-T1059-001 + R-T1055-002） | 1（`terminate_process_tree`，score ≥ 95） |
+
+閒置錄製的告警數 0 與程序樹節點數非零，同時驗證了「booster 不得獨立成立」與「EventXml 接受單引號屬性」兩條紅線在實機資料上成立。
 
 ## 0. 先讀：這批程式碼的狀態
 

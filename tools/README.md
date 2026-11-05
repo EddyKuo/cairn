@@ -9,6 +9,8 @@ PowerShell 腳本相容 Windows PowerShell 5.1 與 PowerShell 7，檔案以 UTF-
 
 | 腳本 | 用途 | 對應 | 需管理員 |
 |---|---|---|---|
+| `build.ps1` | 一鍵 configure / build / test（自動套用 vcvars64、找 winget 的 ninja）；`-Preset -Reconfigure -NoTest -WebUi`。**已在 Windows 驗證** | §2 | — |
+| `Invoke-AdminVerify.ps1` | 一次跑完 WINDOWS-FIRST-RUN §4–§5 需管理員的步驟（前置檢查、svc 測試、錄製 Sysmon 樣本；`-Install` 加裝服務 + RPC 冒煙），日誌寫 `reports\` | §4、§5 | ✅ |
 | `Check-Prereqs.ps1` | 環境前置檢查，任一 FAIL → 離開碼 1 | part4 §4.1.3、W1 出場 1 | 建議 |
 | `Install-Dev.ps1` | 建置產物安裝為 `CairnAgent` 服務；`-Uninstall [-PurgeData]` | W1-10 | ✅ |
 | `Invoke-Rpc.ps1` | `\\.\pipe\Cairn\rpc` 的 JSON-RPC 2.0 命令列客戶端 | W2-15 | — |
