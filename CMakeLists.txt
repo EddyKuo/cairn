@@ -47,8 +47,12 @@ if(MSVC)
             string(REGEX REPLACE "/RTC[1csu]+" "" ${_cfg} "${${_cfg}}")
         endforeach()
         target_compile_options(cairn_compile_options INTERFACE /fsanitize=address /Zi)
+        # vcpkg 相依（yaml-cpp、spdlog、fmt、gtest）未以 ASan 編譯；STL 容器標註會以 detect_mismatch
+        # 檢查兩邊一致，不關掉就 LNK2038。MSVC 14.5x 起多了 annotate_optional，故改用總開關
+        # _DISABLE_STL_ANNOTATION（涵蓋日後新增的容器），並保留個別巨集以相容舊版 STL。
         target_compile_definitions(cairn_compile_options INTERFACE
-            _DISABLE_VECTOR_ANNOTATION _DISABLE_STRING_ANNOTATION)
+            _DISABLE_STL_ANNOTATION
+            _DISABLE_VECTOR_ANNOTATION _DISABLE_STRING_ANNOTATION _DISABLE_OPTIONAL_ANNOTATION)
     endif()
 else()
     target_compile_options(cairn_compile_options INTERFACE -Wall -Wextra -Wpedantic)
