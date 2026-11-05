@@ -11,7 +11,7 @@
 | §2 configure / build | ✅ x64-debug、x64-asan 零錯誤。修正 2 處 MSVC 編譯錯誤（`src/ui/pch.h` 的 `_WINSOCKAPI_`、`AuditChainTests.cpp` 巨集內 raw string）與 1 處 C4244 |
 | §3 core 測試 | ✅ x64-debug、x64-asan 各 161/161；`RingBuffer*` `--gtest_repeat=50` 全綠 |
 | §4 svc 測試 | 🟡 x64-debug、x64-asan 各 132/132，**但在非管理員 shell 執行**；管理員 shell 尚未跑 |
-| §4.1 真實樣本 | 🟡 已以實機錄製（閒置工作站 1,341 筆 + 攻擊模擬 247 筆，`EvtRender` 原樣單引號）重放過解析器與 `AnalysisEngine`，見下；**尚未把去識別化樣本放入 fixture** |
+| §4.1 真實樣本 | 🟡 已以實機錄製（閒置工作站 1,341 筆 + 攻擊模擬 247 筆，`EvtRender` 原樣單引號）重放過解析器與 `AnalysisEngine`，見下；去識別化樣本已加入 `tests/fixtures/sysmon-recorded/`（`RecordedSysmonTests`，15 個 EID） |
 | §5 以後 | ⬜ 未開始（需管理員） |
 
 建置環境備註：`vcpkg.json` 的 `builtin-baseline` 為 2026-07-29，本機 vcpkg checkout 須不早於此（`git -C $env:VCPKG_ROOT pull`）；
