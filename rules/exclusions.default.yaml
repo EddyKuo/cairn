@@ -57,9 +57,13 @@ exclusions:
   - kind: path_glob
     value: 'C:\Program Files (x86)\TeamViewer\*'
     reason: TeamViewer（x86）
+  # 限定官方安裝目錄：AnyDesk 是攻擊者常用的遠端存取工具，可攜版或同名檔（下載夾、%TEMP%）不得被排除
   - kind: path_glob
-    value: '*\AnyDesk.exe'
-    reason: AnyDesk
+    value: 'C:\Program Files\AnyDesk\*'
+    reason: AnyDesk（限安裝目錄）
+  - kind: path_glob
+    value: 'C:\Program Files (x86)\AnyDesk\*'
+    reason: AnyDesk（x86，限安裝目錄）
   - kind: path
     value: 'C:\Windows\System32\rdpclip.exe'
     reason: RDP 剪貼簿
