@@ -104,7 +104,8 @@ double Percentile(std::vector<double> v, double p)
 {
     if (v.empty()) return 0.0;
     std::sort(v.begin(), v.end());
-    const size_t idx = static_cast<size_t>(std::min<double>(v.size() - 1, std::ceil(p * v.size()) - 1));
+    const double n = static_cast<double>(v.size());
+    const size_t idx = static_cast<size_t>(std::min(n - 1.0, std::ceil(p * n) - 1.0));
     return v[idx];
 }
 
