@@ -12,8 +12,20 @@
 | §3 core 測試 | ✅ x64-debug、x64-asan 各 161/161；`RingBuffer*` `--gtest_repeat=50` 全綠 |
 | §4 svc 測試 | ✅ 管理員 shell（`tools\Invoke-AdminVerify.ps1`）：x64-debug、x64-asan 各 136/136，無 skip |
 | §4.1 真實樣本 | 🟡 已以實機錄製（閒置工作站 1,341 筆 + 攻擊模擬 247 筆，`EvtRender` 原樣單引號）重放過解析器與 `AnalysisEngine`，見下；去識別化樣本已加入 `tests/fixtures/sysmon-recorded/`（`RecordedSysmonTests`，15 個 EID） |
-| §1 前置檢查 | 🟡 `Check-Prereqs.ps1` OK=11 WARN=1 FAIL=5：Sysmon 通道 64 MB（需 1 GB）、已套用的是舊版 `sysmon.xml`、未裝 llama-server、ScriptBlockLogging 未啟用、無 sqlite3 CLI——皆為本機環境設定，非程式問題 |
-| §5 以後 | ⬜ 未開始（需先補齊上列環境設定） |
+| §1 前置檢查 | 🟡 補齊環境後 OK=15 WARN=1 FAIL=1：僅剩 llama-server + 模型未安裝（W3 才需要） |
+| §5 服務安裝與冒煙 | ✅ `Install-Dev.ps1` 安裝成功；`health.get` 回合法 JSON-RPC（W2 出場條件 3），sysmon / powershell provider 皆 healthy，LLM `unavailable`（未裝 llama-server，符合預期） |
+| §5.1 整合層首次啟動 | ✅ 全 8 項：單一實例鎖（第二個 `--console` 以 1056 結束）、RPC 27 條、規則 19 / 失敗 0、首次寫入 20 條內建排除且第二次啟動不再寫入、既存程序快照 279、10 秒後 `agent_health` 有列、停止 268 ms 且 `cairn.db-wal` 清為 0、無 `llama-server` 殘留、`protection.pause` 先回 403 + token、帶 token 後 `paused`，`resume` 後回 `learning` |
+| W1 出場條件 3、4（部分） | 🟡 事件落地含 PROCESS_CREATE / NETWORK_CONNECT / REGISTRY_SET / DNS_QUERY；重啟後 sysmon 以 bookmark 續讀，powershell 於首筆 4104 後建立 bookmark。10 分鐘正式量測與健康度比例尚未做 |
+| W1–W4 其餘 | ⬜ 需長時間運作、llama-server、或快照 VM |
+
+**⚠ 發現：PowerShell 7（`pwsh.exe`）的 4104 不在偵測範圍**
+
+`EvtChannelSource::PowerShellConfig` 只訂閱 Windows PowerShell 5.1 的 `Microsoft-Windows-PowerShell/Operational`。
+PowerShell 7 的腳本區塊記錄寫入另一個通道 `PowerShellCore/Operational`，且由另一個政策鍵
+`HKLM\SOFTWARE\Policies\Microsoft\PowerShellCore\ScriptBlockLogging` 啟用（`Check-Prereqs.ps1` 只檢查 5.1 的鍵）。
+實測：同一行指令經 `powershell.exe` 執行可在 `events` 查到 4104，經 `pwsh.exe` 執行則查不到。
+影響：R-T1059-001 的 `script_block` 分支（偵測命令列上看不到的內容）對 pwsh 失效；命令列分支仍涵蓋 `\pwsh.exe`。
+修正須新增事件來源，屬規格變更（part2 §2.2、SDD-01 感測源），待決。
 
 建置環境備註：`vcpkg.json` 的 `builtin-baseline` 為 2026-07-29，本機 vcpkg checkout 須不早於此（`git -C $env:VCPKG_ROOT pull`）；
 winget 安裝的 ninja 不在 vcvars 的 PATH 內，`tools\build.ps1` 會自動補上。
